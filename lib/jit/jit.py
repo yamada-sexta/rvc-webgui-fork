@@ -7,6 +7,7 @@ import torch
 
 from lib.types import FileLike
 
+
 def load_pickle(path: str) -> dict:
     with open(path, "rb") as f:
         return pickle.load(f)
