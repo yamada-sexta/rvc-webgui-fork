@@ -905,9 +905,7 @@ def create_train_tab():
                         visible=F0GPUVisible,
                     )
                 with gr.Column():
-                    gr.Markdown(
-                        value=i18n(
-                            """### Select pitch extraction algorithm:
+                    gr.Markdown(value=i18n("""### Select pitch extraction algorithm:
                               
                 - PM speeds up vocal input.
                 
@@ -915,9 +913,7 @@ def create_train_tab():
                 
                 - Harvest is higher quality but slower.
                 
-                - RMVPE is the best and slightly CPU/GPU-intensive."""
-                        )
-                    )
+                - RMVPE is the best and slightly CPU/GPU-intensive."""))
                     f0method8 = gr.Radio(
                         label="Method",
                         choices=["pm", "harvest", "dio", "rmvpe", "rmvpe_gpu"],
