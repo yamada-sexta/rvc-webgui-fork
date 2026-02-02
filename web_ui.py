@@ -3,7 +3,7 @@ import fairseq
 import torch
 import gradio as gr
 import git
-import logging, warning
+import logging, warnings
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware import Middleware
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,7 +31,7 @@ if FairseqDictionary is not None:
 
 
 warnings.filterwarnings("ignore")
-for l in ["httpx", "uvicorn", "httpcore", "urllib3"]:
+for l in ["httpx", "uvicorn", "httpcore", "urllib3", "PIL", "faiss"]:
     logging.getLogger(l).setLevel(logging.ERROR)
 
 
