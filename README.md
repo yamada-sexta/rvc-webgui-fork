@@ -44,7 +44,7 @@ Create a `docker-compose.yml` similar to this:
 services:
   rvc-fork-server:
     image: ghcr.io/yamada-sexta/rvc-webgui-fork:latest
-    # Or if you prefer build from source
+    # Or if you want the absolute latest version
     # build:
     #   context: https://github.com/yamada-sexta/rvc-webgui-fork.git
     #   dockerfile: Dockerfile
@@ -56,6 +56,7 @@ services:
     ports:
       - "7865:7865"
     volumes:
+      - ./data/cache:/cache
       - ./data/datasets:/app/datasets
       - ./data/weights:/app/assets/weights
       - ./data/logs:/app/logs
