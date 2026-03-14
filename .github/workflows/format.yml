@@ -50,4 +50,4 @@ jobs:
           title: "chore(format): run black on ${{github.ref_name}}"
           commit-message: "chore(format): run black on ${{github.ref_name}}"
           branch: formatter-${{github.ref_name}}
-          enable-auto-merge: true
+          # enable-auto-merge: true
