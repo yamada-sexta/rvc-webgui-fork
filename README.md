@@ -57,6 +57,7 @@ services:
       - "7865:7865"
     volumes:
       - ./data/cache:/cache
+      - ./data/assets:/app/assets/
       - ./data/datasets:/app/datasets
       - ./data/weights:/app/assets/weights
       - ./data/logs:/app/logs
