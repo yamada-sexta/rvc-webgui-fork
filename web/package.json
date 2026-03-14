@@ -1,0 +1,33 @@
+{
+  "name": "vite-template-solid",
+  "version": "0.0.0",
+  "description": "",
+  "type": "module",
+  "scripts": {
+    "start": "vite",
+    "dev": "vite",
+    "build": "vite build",
+    "serve": "vite preview"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vite-plugin-solid": "^2.11.11"
+  },
+  "dependencies": {
+    "@ark-ui/solid": "^5.34.1",
+    "@gradio/client": "^2.1.0",
+    "@kobalte/core": "^0.13.11",
+    "@solid-primitives/storage": "^4.3.4",
+    "@solid-primitives/upload": "^0.1.4",
+    "@thisbeyond/solid-select": "^0.15.1",
+    "baseline-browser-mapping": "^2.10.8",
+    "extendable-media-recorder": "^9.2.36",
+    "extendable-media-recorder-wav-encoder": "^7.0.136",
+    "solid-audio-player": "^1.0.12",
+    "solid-js": "^1.9.11",
+    "solid-spinner": "^0.2.0",
+    "solidjs-material-spinner": "^1.0.4"
+  }
+}
