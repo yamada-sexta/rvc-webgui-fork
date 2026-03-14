@@ -1,20 +1,26 @@
-import { createEffect, createSignal, For, Show, type Component } from 'solid-js';
-import { MediaRecorder, register } from 'extendable-media-recorder';
-import { connect } from 'extendable-media-recorder-wav-encoder';
+import {
+  createEffect,
+  createSignal,
+  For,
+  Show,
+  type Component,
+} from "solid-js";
+import { MediaRecorder, register } from "extendable-media-recorder";
+import { connect } from "extendable-media-recorder-wav-encoder";
 
-import micIcon from "./assets/mic-w.svg"
-import stopIcon from "./assets/stop-w.svg"
-import openIcon from "./assets/fopen-w.svg"
-import { createOptions, Select } from '@thisbeyond/solid-select';
+import micIcon from "./assets/mic-w.svg";
+import stopIcon from "./assets/stop-w.svg";
+import openIcon from "./assets/fopen-w.svg";
+import { createOptions, Select } from "@thisbeyond/solid-select";
 import "@thisbeyond/solid-select/style.css";
-import { createDropzone } from '@solid-primitives/upload';
-import { makePersisted } from '@solid-primitives/storage';
-import { Client } from '@gradio/client';
-import { UrlUI } from './components/url-ui';
-import { AudioPlayerWithStorage } from './components/audio-player-with-storage';
-import { SliderPanel } from './components/silider-pannel';
-import Spinner from './components/spinner';
-import { Switch } from '@kobalte/core/switch';
+import { createDropzone } from "@solid-primitives/upload";
+import { makePersisted } from "@solid-primitives/storage";
+import { Client } from "@gradio/client";
+import { UrlUI } from "./components/url-ui";
+import { AudioPlayerWithStorage } from "./components/audio-player-with-storage";
+import { SliderPanel } from "./components/silider-pannel";
+import Spinner from "./components/spinner";
+import { Switch } from "@kobalte/core/switch";
 
 const App: Component = () => {
   const [client, setClient] = createSignal<Client>();
@@ -22,12 +28,22 @@ const App: Component = () => {
   const [isProcessing, setIsProcessing] = createSignal(false);
   const [pitch, setPitch] = makePersisted(createSignal(0), { name: "pitch" });
   const [models, setModels] = createSignal<string[]>([]);
-  const [model, setModel] = makePersisted(createSignal<string>(), { name: "model" });
-  const [f0Method, setF0Method] = makePersisted(createSignal("rmvpe"), { name: "f0Method" });
-  const [indexRate, setIndexRate] = makePersisted(createSignal(0.75), { name: "indexRate" });
-  const [protect0, setProtect0] = makePersisted(createSignal(0.33), { name: "protect0" });
-  const [rmsMixRate0, setRmsMixRate0] = makePersisted(createSignal(0.25), { name: "rmsMixRate0" });
-  const [resultAudioBlob, setResultAudioBlob] = (createSignal<Blob | null>(null));
+  const [model, setModel] = makePersisted(createSignal<string>(), {
+    name: "model",
+  });
+  const [f0Method, setF0Method] = makePersisted(createSignal("rmvpe"), {
+    name: "f0Method",
+  });
+  const [indexRate, setIndexRate] = makePersisted(createSignal(0.75), {
+    name: "indexRate",
+  });
+  const [protect0, setProtect0] = makePersisted(createSignal(0.33), {
+    name: "protect0",
+  });
+  const [rmsMixRate0, setRmsMixRate0] = makePersisted(createSignal(0.25), {
+    name: "rmsMixRate0",
+  });
+  const [resultAudioBlob, setResultAudioBlob] = createSignal<Blob | null>(null);
 
   const [statusMessage, setStatusMessage] = createSignal("");
   const [inputAudioBlob, setInputAudioBlob] = createSignal<Blob | null>(null);
@@ -47,12 +63,12 @@ const App: Component = () => {
       const ms = await c.predict("/get_model_list", {});
       const data = ms.data as [string[]];
       console.log("ms", ms);
-      setModels(data[0])
+      setModels(data[0]);
     } catch (e) {
       console.error(e);
       setStatusMessage(`Error getting models: ${e}`);
     }
-  })
+  });
 
   // On model change
   createEffect(async () => {
@@ -71,15 +87,14 @@ const App: Component = () => {
       const loadModelRes = await c.predict("/infer_change_voice", {
         sid: model(),
         param_1: 0,
-      })
+      });
 
       console.log("loadModelRes", loadModelRes);
-
     } catch (e) {
       console.error(e);
       setStatusMessage(`Error getting models: ${e}`);
     }
-  })
+  });
 
   // On models change
   createEffect(() => {
@@ -96,36 +111,40 @@ const App: Component = () => {
       return;
     }
     setModel(ms[0]);
-  })
+  });
   const [mediaRecorder, setMediaRecorder] = createSignal<MediaRecorder>();
   let chunks: BlobPart[] = [];
   console.log("svg", micIcon);
 
-  const recordBtn = (<button onClick={handleRecordClick} class='btn-primary btn-icon'>
-    {isRecording() ? [
-      <img src={stopIcon} class='icon' />,
-      "Stop"
-    ] : [
-      <img src={micIcon} class='icon' />,
-      "Record"
-    ]
-    }
-  </button>) as HTMLButtonElement;
+  const recordBtn = (
+    <button onClick={handleRecordClick} class="btn-primary btn-icon">
+      {isRecording()
+        ? [<img src={stopIcon} class="icon" />, "Stop"]
+        : [<img src={micIcon} class="icon" />, "Record"]}
+    </button>
+  ) as HTMLButtonElement;
 
-  const uploadBtn = (<button
-    class='btn-primary'
-    onClick={processInput}
-    disabled={!inputAudioBlob() || isProcessing()}
-  >
-    {isProcessing() ?
-      <div class='row center-container g1'>
-        <Spinner size={24} strokeWidth={6} 
-        pathColor='var(--light-2)'
-        trackColor='var(--blue-1)'
-        ></Spinner>
-        Processing...
-      </div> : "Process"}
-  </button>) as HTMLButtonElement;
+  const uploadBtn = (
+    <button
+      class="btn-primary"
+      onClick={processInput}
+      disabled={!inputAudioBlob() || isProcessing()}
+    >
+      {isProcessing() ? (
+        <div class="row center-container g1">
+          <Spinner
+            size={24}
+            strokeWidth={6}
+            pathColor="var(--light-2)"
+            trackColor="var(--blue-1)"
+          ></Spinner>
+          Processing...
+        </div>
+      ) : (
+        "Process"
+      )}
+    </button>
+  ) as HTMLButtonElement;
 
   let fileInput: HTMLInputElement | undefined;
   const handleButtonClick = () => {
@@ -133,9 +152,10 @@ const App: Component = () => {
   };
   const filePickerBtn = (
     <div>
-      <button onClick={handleButtonClick} class='btn-primary btn-icon'>
-        <img src={openIcon} class='icon' />
-        Open</button>
+      <button onClick={handleButtonClick} class="btn-primary btn-icon">
+        <img src={openIcon} class="icon" />
+        Open
+      </button>
       <input
         type="file"
         ref={fileInput}
@@ -143,11 +163,13 @@ const App: Component = () => {
         style={{ display: "none" }} // Hide the input
       />
     </div>
-  )
+  );
 
   // Check for MediaRecorder support
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    alert("Your browser does not support audio recording. Please use a modern browser.");
+    alert(
+      "Your browser does not support audio recording. Please use a modern browser.",
+    );
     recordBtn.disabled = true;
   }
 
@@ -157,10 +179,14 @@ const App: Component = () => {
         let mr = mediaRecorder() as MediaRecorder;
         if (!mr) {
           await register(await connect());
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+          });
           const settings = stream.getAudioTracks()[0].getSettings();
           console.log({ settings });
-          const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/wav' }) as MediaRecorder;
+          const mediaRecorder = new MediaRecorder(stream, {
+            mimeType: "audio/wav",
+          }) as MediaRecorder;
           setMediaRecorder(mediaRecorder);
         }
 
@@ -183,8 +209,8 @@ const App: Component = () => {
 
         mr.onstop = () => {
           console.log("Stopped");
-          const recordedBlob = new Blob(chunks, { type: 'audio/wav' });
-          setInputAudioBlob(recordedBlob)
+          const recordedBlob = new Blob(chunks, { type: "audio/wav" });
+          setInputAudioBlob(recordedBlob);
         };
 
         mr.start();
@@ -200,7 +226,7 @@ const App: Component = () => {
       mediaRecorder()?.stop();
       setIsRecording(false);
     }
-  };
+  }
 
   async function processInput() {
     const inputAudio = inputAudioBlob();
@@ -226,31 +252,34 @@ const App: Component = () => {
         protect: protect0(),
       });
       console.log("response", response);
-      const [info, audio] = response.data as [string, {
-        path: string,
-        url: string,
-        orig_name: string
-      }];
+      const [info, audio] = response.data as [
+        string,
+        {
+          path: string;
+          url: string;
+          orig_name: string;
+        },
+      ];
       try {
-        const serverWavBlob = await fetch(audio.url).then(res => res.blob());
+        const serverWavBlob = await fetch(audio.url).then((res) => res.blob());
         setResultAudioBlob(serverWavBlob);
         setStatusMessage("");
       } catch (e) {
         console.warn(e);
-        setStatusMessage(info)
+        setStatusMessage(info);
       }
     } catch (err: any) {
       console.error("Upload error:", err);
       setStatusMessage(`Error uploading/processing audio: ${err.message}`);
     }
     setIsProcessing(false);
-  };
+  }
 
   createEffect(() => {
     if (isProcessing()) {
-      setResultAudioBlob(null)
+      setResultAudioBlob(null);
     }
-  })
+  });
 
   function handleFile(file: File) {
     console.log("file", file);
@@ -260,8 +289,8 @@ const App: Component = () => {
   }
 
   /**
- * Handle the user picking an audio file with the file input.
- */
+   * Handle the user picking an audio file with the file input.
+   */
   function handleFileEvent(e: Event & { currentTarget: HTMLInputElement }) {
     const file = e.currentTarget.files?.[0];
     if (!file) return;
@@ -271,9 +300,9 @@ const App: Component = () => {
   const [isFileHover, setIsFileHover] = createSignal(false);
 
   const { setRef: dropzoneRef, files: droppedFiles } = createDropzone({
-    onDrop: async files => {
+    onDrop: async (files) => {
       setIsFileHover(false);
-      files.forEach(f => console.log(f));
+      files.forEach((f) => console.log(f));
       if (!files.length) {
         console.log("No file");
         setStatusMessage("No File");
@@ -283,16 +312,16 @@ const App: Component = () => {
       const file = files[0];
       handleFile(file.file);
     },
-    onDragStart: files => {
-      files.forEach(f => console.log(f))
+    onDragStart: (files) => {
+      files.forEach((f) => console.log(f));
       setIsFileHover(false);
     },
-    onDragOver: files => {
+    onDragOver: (files) => {
       setIsFileHover(true);
     },
-    onDragLeave: e => {
+    onDragLeave: (e) => {
       setIsFileHover(false);
-    }
+    },
   });
 
   let interval: number | undefined = undefined;
@@ -324,7 +353,8 @@ const App: Component = () => {
 
   const [playRes, setPlayRes] = createSignal(false);
   const [autoplayResult, setAutoplayResult] = makePersisted(
-    createSignal(false), { name: "autoplayResult" }
+    createSignal(false),
+    { name: "autoplayResult" },
   );
 
   createEffect(() => {
@@ -336,16 +366,14 @@ const App: Component = () => {
     if (res) {
       setPlayRes(true);
     }
-  })
-
-
+  });
 
   return (
     <div
       class={`${isFileHover() ? "drag-over g2" : "g2"} fullscreen`}
       ref={dropzoneRef}
       style={{
-        "display": "flex",
+        display: "flex",
         "flex-direction": "column",
         "align-items": "center",
         "justify-content": "center",
@@ -364,11 +392,10 @@ const App: Component = () => {
       >
         {recordBtn}
         {filePickerBtn}
-        <div
-          class='row g1'
-        >
+        <div class="row g1">
           Auto Process
-          <Switch class="switch"
+          <Switch
+            class="switch"
             checked={autoProcess()}
             onChange={setAutoProcess}
           >
@@ -379,11 +406,10 @@ const App: Component = () => {
           </Switch>
         </div>
 
-        <div
-          class='row g1'
-        >
+        <div class="row g1">
           Autoplay
-          <Switch class="switch"
+          <Switch
+            class="switch"
             checked={autoplayResult()}
             onChange={setAutoplayResult}
           >
@@ -393,107 +419,132 @@ const App: Component = () => {
             </Switch.Control>
           </Switch>
         </div>
-
       </div>
       <UrlUI setClient={setClient} client={client}></UrlUI>
-      {
-        client() ? (
-          <>
+      {client() ? (
+        <>
+          <div
+            class="center-container row"
+            style={{
+              gap: "20px",
+              width: "100%",
+            }}
+          >
             <div
-              class='center-container row'
+              class="center-container row"
               style={{
-                gap: "20px",
-                "width": "100%",
+                "max-width": "300px",
+                width: "100%",
+                gap: "10px",
               }}
             >
-              <div class='center-container row' style={
-                {
-                  "max-width": "300px",
-                  "width": "100%",
-                  gap: "10px",
-                }
-              }>
-                <label >Model</label>
-                <Select
-                  class="select"
-                  {...createOptions(models())}
-                  initialValue={model()}
-                  onChange={setModel}
-                />
-              </div>
-
-              <div class='dropdown-container' style={{ "max-width": "200px" }}>
-                <label >F0 Method</label>
-                <Select
-                  class="select"
-                  {...createOptions(["rmvpe", "pm", "crepe"])}
-                  initialValue={f0Method()}
-                  onChange={setF0Method}
-                />
-              </div>
+              <label>Model</label>
+              <Select
+                class="select"
+                {...createOptions(models())}
+                initialValue={model()}
+                onChange={setModel}
+              />
             </div>
 
-            <SliderPanel
-              title='Config'
-              sliders={[
-                { value: pitch, setValue: setPitch, min: -24, max: 24, step: 1, label: "Pitch" },
-                { value: indexRate, setValue: setIndexRate, min: 0, max: 1, step: 0.01, label: "Index Rate" },
-                { value: rmsMixRate0, setValue: setRmsMixRate0, min: 0, max: 1, step: 0.01, label: "RMS Mix Rate" },
-                { value: protect0, setValue: setProtect0, min: 0, max: 1, step: 0.01, label: "Protect" },
-              ]}
-            ></SliderPanel>
-            <div class='col w100 g1' style={
+            <div class="dropdown-container" style={{ "max-width": "200px" }}>
+              <label>F0 Method</label>
+              <Select
+                class="select"
+                {...createOptions(["rmvpe", "pm", "crepe"])}
+                initialValue={f0Method()}
+                onChange={setF0Method}
+              />
+            </div>
+          </div>
+
+          <SliderPanel
+            title="Config"
+            sliders={[
               {
-                "max-width": "700px",
-                "height": "100px",
-              }
-            }>
-              <div class='row w100 g1'>
-                <AudioPlayerWithStorage
-                  blob={inputAudioBlob}
-                  setBlob={setInputAudioBlob}
-                  key='input-audio.wav'
-                  saveAs={() => {
-                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                    return `input_${timestamp}.wav`;
-                  }}
-                ></AudioPlayerWithStorage>
-                <Show when={inputAudioBlob()}>
-                  {uploadBtn}
-                </Show>
-
-              </div>
+                value: pitch,
+                setValue: setPitch,
+                min: -24,
+                max: 24,
+                step: 1,
+                label: "Pitch",
+              },
+              {
+                value: indexRate,
+                setValue: setIndexRate,
+                min: 0,
+                max: 1,
+                step: 0.01,
+                label: "Index Rate",
+              },
+              {
+                value: rmsMixRate0,
+                setValue: setRmsMixRate0,
+                min: 0,
+                max: 1,
+                step: 0.01,
+                label: "RMS Mix Rate",
+              },
+              {
+                value: protect0,
+                setValue: setProtect0,
+                min: 0,
+                max: 1,
+                step: 0.01,
+                label: "Protect",
+              },
+            ]}
+          ></SliderPanel>
+          <div
+            class="col w100 g1"
+            style={{
+              "max-width": "700px",
+              height: "100px",
+            }}
+          >
+            <div class="row w100 g1">
               <AudioPlayerWithStorage
-                blob={resultAudioBlob}
-                setBlob={setResultAudioBlob}
-                key='result-audio.wav'
+                blob={inputAudioBlob}
+                setBlob={setInputAudioBlob}
+                key="input-audio.wav"
                 saveAs={() => {
-                  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                  const m = model();
-                  if (!m) {
-                    alert("No model selected!");
-                    return "";
-                  }
-                  const fileName = `${m.replace(".pth", "")}_${timestamp}.wav`;
-                  return fileName;
+                  const timestamp = new Date()
+                    .toISOString()
+                    .replace(/[:.]/g, "-");
+                  return `input_${timestamp}.wav`;
                 }}
-                playControls={[playRes, setPlayRes]}
               ></AudioPlayerWithStorage>
+              <Show when={inputAudioBlob()}>{uploadBtn}</Show>
             </div>
-            <Show
-              when={statusMessage()}
-            >
-              <div style="font-weight: bold; width: 100%; user-select: text;">
-                {statusMessage()}
-              </div>
-            </Show>
-
-          </>
-        ) : (
-          <div>Client Not Valid</div>
-        )
-      }
-    </div >
+            <AudioPlayerWithStorage
+              blob={resultAudioBlob}
+              setBlob={setResultAudioBlob}
+              key="result-audio.wav"
+              saveAs={() => {
+                const timestamp = new Date()
+                  .toISOString()
+                  .replace(/[:.]/g, "-");
+                const m = model();
+                if (!m) {
+                  alert("No model selected!");
+                  return "";
+                }
+                const fileName = `${m.replace(".pth", "")}_${timestamp}.wav`;
+                return fileName;
+              }}
+              playControls={[playRes, setPlayRes]}
+            ></AudioPlayerWithStorage>
+          </div>
+          <Show when={statusMessage()}>
+            <div style="font-weight: bold; width: 100%; user-select: text;">
+              {statusMessage()}
+            </div>
+          </Show>
+        </>
+      ) : (
+        <div>Client Not Valid</div>
+      )}
+    </div>
   );
 };
 

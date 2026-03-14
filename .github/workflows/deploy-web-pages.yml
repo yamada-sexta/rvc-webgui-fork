@@ -39,8 +39,6 @@ jobs:
               run: bun install
 
             - name: Build
-              env:
-                  VITE_BASE_PATH: /rvc-webgui-fork/
               run: bun run build
 
             - name: Setup Pages

@@ -1,4 +1,4 @@
-import { Component } from "solid-js"
+import { Component } from "solid-js";
 
 export const Divider: Component = () => {
   return (
@@ -8,7 +8,6 @@ export const Divider: Component = () => {
         width: "100%",
         height: "1px",
       }}
-
     ></div>
-  )
-}
+  );
+};

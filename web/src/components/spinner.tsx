@@ -1,4 +1,4 @@
-import { Component } from 'solid-js';
+import { Component } from "solid-js";
 
 type SpinnerProps = {
   size?: number; // Diameter in pixels
@@ -11,8 +11,8 @@ type SpinnerProps = {
 const Spinner: Component<SpinnerProps> = (props) => {
   const size = props.size ?? 40;
   const strokeWidth = props.strokeWidth ?? 5;
-  const trackColor = props.trackColor ?? '#e0e0e0';
-  const pathColor = props.pathColor ?? '#3f51b5';
+  const trackColor = props.trackColor ?? "#e0e0e0";
+  const pathColor = props.pathColor ?? "#3f51b5";
 
   return (
     <div
@@ -23,11 +23,11 @@ const Spinner: Component<SpinnerProps> = (props) => {
       }}
     >
       <svg
-        class={`spinner ${props.class ?? ''}`}
+        class={`spinner ${props.class ?? ""}`}
         viewBox="25 25 50 50"
         style={{
-          width: '100%',
-          height: '100%',
+          width: "100%",
+          height: "100%",
         }}
       >
         <circle
