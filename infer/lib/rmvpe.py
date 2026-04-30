@@ -137,7 +137,10 @@ class STFT(torch.nn.Module):
             :, 0, 0, self.pad_amount : -self.pad_amount
         ]
         window_square_sum = (
-            cast(torch.Tensor, self.fft_window).pow(2).repeat(cat.size(-1), 1).T.unsqueeze(0)
+            cast(torch.Tensor, self.fft_window)
+            .pow(2)
+            .repeat(cat.size(-1), 1)
+            .T.unsqueeze(0)
         )
         window_square_sum = fold(window_square_sum)[
             :, 0, 0, self.pad_amount : -self.pad_amount
@@ -474,7 +477,11 @@ class MelSpectrogram(torch.nn.Module):
         self.is_half = is_half
 
     def forward(
-        self, audio: torch.Tensor, keyshift: float = 0, speed: float = 1, center: bool = True
+        self,
+        audio: torch.Tensor,
+        keyshift: float = 0,
+        speed: float = 1,
+        center: bool = True,
     ) -> torch.Tensor:
         factor = 2 ** (keyshift / 12)
         n_fft_new = int(np.round(self.n_fft * factor))
@@ -678,9 +685,7 @@ class RMVPE:
             )
             hidden_chunk = cast(
                 torch.Tensor,
-                self.mel2hidden(
-                mel_chunk
-                ),
+                self.mel2hidden(mel_chunk),
             )  # Shape: (1, num_frames_in_chunk, 384)
 
             # Remove batch dimension
@@ -775,7 +780,9 @@ class RMVPE:
         f0 = self.decode(combined_hidden_np, thred=thred)
         return f0
 
-    def to_local_average_cents(self, salience: np.ndarray, thred: float = 0.05) -> np.ndarray:
+    def to_local_average_cents(
+        self, salience: np.ndarray, thred: float = 0.05
+    ) -> np.ndarray:
         # t0 = ttime()
         center = np.argmax(salience, axis=1)  # Frame length #index
         salience = np.pad(salience, ((0, 0), (4, 4)))  # Frame length, 368
@@ -806,7 +813,9 @@ if __name__ == "__main__":
     import librosa
     import soundfile as sf
 
-    audio, sampling_rate = sf.read(r"C:\Users\liujing04\Desktop\Z\Winter_Flower_clip1.wav")
+    audio, sampling_rate = sf.read(
+        r"C:\Users\liujing04\Desktop\Z\Winter_Flower_clip1.wav"
+    )
     if len(audio.shape) > 1:
         audio = librosa.to_mono(audio.transpose(1, 0))
     audio_bak = audio.copy()

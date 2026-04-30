@@ -246,16 +246,26 @@ def save_checkpoint_d(
 
 
 class SummaryWriter(Protocol):
-    def add_scalar(self, tag: str, scalar_value: object, global_step: int) -> object: ...
+    def add_scalar(
+        self, tag: str, scalar_value: object, global_step: int
+    ) -> object: ...
 
     def add_histogram(self, tag: str, values: object, global_step: int) -> object: ...
 
     def add_image(
-        self, tag: str, img_tensor: NDArray[np.generic], global_step: int, dataformats: str
+        self,
+        tag: str,
+        img_tensor: NDArray[np.generic],
+        global_step: int,
+        dataformats: str,
     ) -> object: ...
 
     def add_audio(
-        self, tag: str, snd_tensor: NDArray[np.generic], global_step: int, sample_rate: int
+        self,
+        tag: str,
+        snd_tensor: NDArray[np.generic],
+        global_step: int,
+        sample_rate: int,
     ) -> object: ...
 
 
@@ -283,7 +293,9 @@ def summarize(
 
 
 def latest_checkpoint_path(dir_path: Path, regex: str = "G_*.pth") -> Path:
-    f_list = sorted(dir_path.glob(regex), key=lambda f: int("".join(filter(str.isdigit, f.name))))
+    f_list = sorted(
+        dir_path.glob(regex), key=lambda f: int("".join(filter(str.isdigit, f.name)))
+    )
     x = f_list[-1]
     logger.debug(x)
     return x

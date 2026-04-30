@@ -11,7 +11,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
 ModelWeights = Mapping[str, torch.Tensor]
 
 
@@ -53,7 +52,9 @@ def model_hash(filename: str) -> str:
         return "NOFILE"
 
 
-def eval_attention(model: ModelWeights, n: int, input_tensor: torch.Tensor) -> torch.Tensor:
+def eval_attention(
+    model: ModelWeights, n: int, input_tensor: torch.Tensor
+) -> torch.Tensor:
     qk = f"enc_p.encoder.attn_layers.{n}.conv_q.weight"
     uk = f"enc_p.encoder.attn_layers.{n}.conv_k.weight"
     vk = f"enc_p.encoder.attn_layers.{n}.conv_v.weight"

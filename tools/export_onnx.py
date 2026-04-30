@@ -12,8 +12,12 @@ if __name__ == "__main__":
     print(*cpt["config"])
 
     test_phone = torch.rand(1, 200, hidden_channels)  # hidden unit
-    test_phone_lengths = torch.tensor([200]).long()  # Hidden unit length (seems useless)
-    test_pitch = torch.randint(size=(1, 200), low=5, high=255)  # Fundamental frequency (in Hertz)
+    test_phone_lengths = torch.tensor(
+        [200]
+    ).long()  # Hidden unit length (seems useless)
+    test_pitch = torch.randint(
+        size=(1, 200), low=5, high=255
+    )  # Fundamental frequency (in Hertz)
     test_pitchf = torch.rand(1, 200)  # NSF fundamental frequency
     test_ds = torch.LongTensor([0])  # Speaker ID
     test_rnd = torch.rand(1, 192, 200)  # Noise (adding a random factor)

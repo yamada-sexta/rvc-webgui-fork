@@ -11,7 +11,9 @@ def export_onnx(ModelPath, ExportedPath):
 def create_onnx_tab():
     with gr.TabItem(i18n("Onnx Export")):
         with gr.Row():
-            ckpt_dir = gr.Textbox(label=i18n("RVCModel path"), value="", interactive=True)
+            ckpt_dir = gr.Textbox(
+                label=i18n("RVCModel path"), value="", interactive=True
+            )
         with gr.Row():
             onnx_dir = gr.Textbox(
                 label=i18n("OnnxOutput path"), value="", interactive=True

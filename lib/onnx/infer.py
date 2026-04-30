@@ -60,7 +60,9 @@ class RVC(Model):
         super().__init__(model_path, device)
         self.vec_model = ContentVec(vec_path, device)
         self.hop_len = hop_len
-        self.f0_gen = Generator(Path("assets/rmvpe"), False, 0, window=hop_len, sr=model_sr)
+        self.f0_gen = Generator(
+            Path("assets/rmvpe"), False, 0, window=hop_len, sr=model_sr
+        )
 
     def infer(
         self,
@@ -90,7 +92,9 @@ class RVC(Model):
         rnd = np.random.randn(1, 192, hubert_length).astype(np.float32)
         hubert_length_array = np.array([hubert_length]).astype(np.int64)
 
-        out_wav = self.forward(hubert, hubert_length_array, pitch, pitchf, ds, rnd).squeeze()
+        out_wav = self.forward(
+            hubert, hubert_length_array, pitch, pitchf, ds, rnd
+        ).squeeze()
 
         out_wav = np.pad(out_wav, (0, 2 * self.hop_len), "constant")
 

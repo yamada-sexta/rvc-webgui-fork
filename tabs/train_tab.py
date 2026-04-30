@@ -777,7 +777,9 @@ def one_click_training(
         version19,
     )
     yield get_info_str(
-        i18n("Training finished, you can view the console training log or train.log in the experiment folder")
+        i18n(
+            "Training finished, you can view the console training log or train.log in the experiment folder"
+        )
     )
 
     # step3b: Train index

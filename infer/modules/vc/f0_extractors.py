@@ -181,7 +181,7 @@ class RMVPE_PitchExtractor(PitchExtractor):
                 "%s/rmvpe.pt" % (self.shared.rmvpe_root),
                 is_half=self.is_half,
                 device=self.device,
-        )
+            )
         f0 = self.model.infer_from_audio(audio, thred=0.03)
         return f0
 
