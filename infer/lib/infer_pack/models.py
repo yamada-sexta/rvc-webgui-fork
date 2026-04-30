@@ -953,7 +953,9 @@ class SynthesizerTrnMs256NSFsid_nono(nn.Module):
         return self
 
     @torch.jit.ignore
-    def forward(self, phone, phone_lengths, y, y_lengths, ds):  # Here ds is the id, [bs,1]
+    def forward(
+        self, phone, phone_lengths, y, y_lengths, ds
+    ):  # Here ds is the id, [bs,1]
         g = self.emb_g(ds).unsqueeze(-1)  # [b, 256, 1]## 1 is t, broadcasted
         m_p, logs_p, x_mask = self.enc_p(phone, None, phone_lengths)
         z, m_q, logs_q, y_mask = self.enc_q(y, y_lengths, g=g)

@@ -10,8 +10,12 @@ def export_onnx(from_cpkt_pth: Path, to_onnx_pth: Path) -> str:
     vec_channels = 256 if cpt.get("version", "v1") == "v1" else 768
 
     test_phone = torch.rand(1, 200, vec_channels)  # hidden unit
-    test_phone_lengths = torch.tensor([200]).long()  # Hidden unit length (seems useless)
-    test_pitch = torch.randint(size=(1, 200), low=5, high=255)  # Fundamental frequency (in Hertz)
+    test_phone_lengths = torch.tensor(
+        [200]
+    ).long()  # Hidden unit length (seems useless)
+    test_pitch = torch.randint(
+        size=(1, 200), low=5, high=255
+    )  # Fundamental frequency (in Hertz)
     test_pitchf = torch.rand(1, 200)  # NSF fundamental frequency
     test_ds = torch.LongTensor([0])  # Speaker ID
     test_rnd = torch.rand(1, 192, 200)  # Noise (adding a random factor)

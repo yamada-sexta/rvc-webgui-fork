@@ -102,9 +102,7 @@ class HarvestF0Predictor(F0Predictor):
             f0_floor=self.f0_min,
             frame_period=1000 * self.hop_length / self.sampling_rate,
         )
-        f0 = pyworld_harvest.stonemask(
-            wav.astype(np.double), f0, t, self.sampling_rate
-        )
+        f0 = pyworld_harvest.stonemask(wav.astype(np.double), f0, t, self.sampling_rate)
         return self.interpolate_f0(self.resize_f0(f0, p_len))[0]
 
     def compute_f0_uv(
@@ -119,7 +117,5 @@ class HarvestF0Predictor(F0Predictor):
             f0_ceil=self.f0_max,
             frame_period=1000 * self.hop_length / self.sampling_rate,
         )
-        f0 = pyworld_harvest.stonemask(
-            wav.astype(np.double), f0, t, self.sampling_rate
-        )
+        f0 = pyworld_harvest.stonemask(wav.astype(np.double), f0, t, self.sampling_rate)
         return self.interpolate_f0(self.resize_f0(f0, p_len))

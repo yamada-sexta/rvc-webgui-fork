@@ -17,7 +17,9 @@ from .attention import attention_init
 
 
 @no_type_check
-def ipex_init() -> tuple[Literal[True], None] | tuple[Literal[False], Exception]:  # pylint: disable=too-many-statements
+def ipex_init() -> (
+    tuple[Literal[True], None] | tuple[Literal[False], Exception]
+):  # pylint: disable=too-many-statements
     try:
         # Replace cuda with xpu:
         torch.cuda.current_device = torch.xpu.current_device

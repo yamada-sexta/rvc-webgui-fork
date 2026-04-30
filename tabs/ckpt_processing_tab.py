@@ -32,8 +32,12 @@ def create_ckpt_processing_tab():
         with gr.Group():
             gr.Markdown(value=i18n("Model fusion, can be used to test timbre fusion"))
             with gr.Row():
-                ckpt_a = gr.Textbox(label=i18n("AModel path"), value="", interactive=True)
-                ckpt_b = gr.Textbox(label=i18n("BModel path"), value="", interactive=True)
+                ckpt_a = gr.Textbox(
+                    label=i18n("AModel path"), value="", interactive=True
+                )
+                ckpt_b = gr.Textbox(
+                    label=i18n("BModel path"), value="", interactive=True
+                )
                 alpha_a = gr.Slider(
                     minimum=0,
                     maximum=1,
@@ -92,7 +96,9 @@ def create_ckpt_processing_tab():
             )  # def merge(path1,path2,alpha1,sr,f0,info):
         with gr.Group():
             gr.Markdown(
-                value=i18n("Modify model info (only supports small model files extracted under the weights folder)")
+                value=i18n(
+                    "Modify model info (only supports small model files extracted under the weights folder)"
+                )
             )
             with gr.Row():
                 ckpt_path0 = gr.Textbox(
@@ -105,7 +111,9 @@ def create_ckpt_processing_tab():
                     interactive=True,
                 )
                 name_to_save1 = gr.Textbox(
-                    label=i18n("Saved filename, empty defaults to the same name as the source file"),
+                    label=i18n(
+                        "Saved filename, empty defaults to the same name as the source file"
+                    ),
                     value="",
                     max_lines=8,
                     interactive=True,
@@ -121,7 +129,9 @@ def create_ckpt_processing_tab():
             )
         with gr.Group():
             gr.Markdown(
-                value=i18n("View model info (only supports small model files extracted under the weights folder)")
+                value=i18n(
+                    "View model info (only supports small model files extracted under the weights folder)"
+                )
             )
             with gr.Row():
                 ckpt_path1 = gr.Textbox(
@@ -142,7 +152,9 @@ def create_ckpt_processing_tab():
                     value="E:\\codes\\py39\\logs\\mi-test_f0_48k\\G_23333.pth",
                     interactive=True,
                 )
-                save_name = gr.Textbox(label=i18n("Save name"), value="", interactive=True)
+                save_name = gr.Textbox(
+                    label=i18n("Save name"), value="", interactive=True
+                )
                 sr__ = gr.Radio(
                     label=i18n("Target sample rate"),
                     choices=["32k", "40k", "48k"],
@@ -150,7 +162,9 @@ def create_ckpt_processing_tab():
                     interactive=True,
                 )
                 if_f0__ = gr.Radio(
-                    label=i18n("Does the model have pitch guidance? 1 for yes, 0 for no"),
+                    label=i18n(
+                        "Does the model have pitch guidance? 1 for yes, 0 for no"
+                    ),
                     choices=["1", "0"],
                     value="1",
                     interactive=True,

@@ -47,7 +47,9 @@ def rmvpe_jit_export(
     if mode == "trace":
         if inputs_path is None:
             raise ValueError("inputs_path is required when mode is 'trace'")
-        inputs = cast(dict[str, torch.Tensor], load_inputs(inputs_path, device, is_half))
+        inputs = cast(
+            dict[str, torch.Tensor], load_inputs(inputs_path, device, is_half)
+        )
     ckpt = export_jit_model(model, mode, inputs, device, is_half)
     ckpt["device"] = str(device)
     save_pickle(ckpt, save_path)

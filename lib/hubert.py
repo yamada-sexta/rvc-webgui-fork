@@ -215,15 +215,11 @@ def compute_mask_indices(
             mask_idc = torch.asarray(mask_idc, dtype=torch.float)
         if len(mask_idc) > min_len and require_same_masks:
             keep = random.sample(range(len(mask_idc)), min_len)
-            mask_idc = torch.asarray(
-                [mask_idc[j].item() for j in keep]
-            )
+            mask_idc = torch.asarray([mask_idc[j].item() for j in keep])
         if mask_dropout > 0:
             num_holes = int(round(len(mask_idc) * mask_dropout))
             keep = random.sample(range(len(mask_idc)), len(mask_idc) - num_holes)
-            mask_idc = torch.asarray(
-                [mask_idc[j].item() for j in keep]
-            )
+            mask_idc = torch.asarray([mask_idc[j].item() for j in keep])
 
         mask[i, mask_idc.int()] = True
 
@@ -336,7 +332,9 @@ def get_hubert(model_path="assets/hubert/hubert_base.pt", device=torch.device("c
         logits = hubert_model.extract_features(
             source=source, padding_mask=padding_mask, output_layer=output_layer_id
         )
-        feats = hubert_model.final_proj(logits[0]) if output_layer_id == 9 else logits[0]
+        feats = (
+            hubert_model.final_proj(logits[0]) if output_layer_id == 9 else logits[0]
+        )
         return feats
 
     hubert_model.infer = infer

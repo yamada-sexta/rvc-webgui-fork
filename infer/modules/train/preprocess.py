@@ -136,7 +136,9 @@ class PreProcess:
             inp_root_path = Path(inp_root)
             infos = [
                 (str(inp_root_path / name), idx)
-                for idx, name in enumerate(sorted(inp_root_path.iterdir(), key=lambda p: p.name))
+                for idx, name in enumerate(
+                    sorted(inp_root_path.iterdir(), key=lambda p: p.name)
+                )
             ]
             if noparallel:
                 for i in range(n_p):
