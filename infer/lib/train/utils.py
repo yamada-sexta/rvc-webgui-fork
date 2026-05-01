@@ -8,7 +8,7 @@ import sys
 import shutil
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, Literal
 
 import numpy as np
 import torch
@@ -36,7 +36,7 @@ class TrainArgs(Tap):
     # Experiment directory name under logs.
     experiment_dir: str
     # Sample rate, such as 32k, 40k, or 48k.
-    sample_rate: str
+    sample_rate: Literal["32k", "40k", "48k"]
     # Save extracted model weights when saving checkpoints.
     save_every_weights: str = "0"
     # Model version.
@@ -432,7 +432,7 @@ class TrainConfig(BaseModel):
     seed: int
     epochs: int
     learning_rate: float
-    betas: List[float]
+    betas: list[float]
     eps: float
     batch_size: int
     fp16_run: bool
@@ -451,8 +451,8 @@ class DataConfig(BaseModel):
     win_length: int
     n_mel_channels: int
     mel_fmin: float
-    mel_fmax: Optional[float]
-    training_files: Optional[str] = None
+    mel_fmax: float | None = None
+    training_files: str = ""
 
 class ModelConfig(BaseModel):
     inter_channels: int
@@ -463,11 +463,11 @@ class ModelConfig(BaseModel):
     kernel_size: int
     p_dropout: float
     resblock: str
-    resblock_kernel_sizes: List[int]
-    resblock_dilation_sizes: List[List[int]]
-    upsample_rates: List[int]
+    resblock_kernel_sizes: list[int]
+    resblock_dilation_sizes: list[list[int]]
+    upsample_rates: list[int]
     upsample_initial_channel: int
-    upsample_kernel_sizes: List[int]
+    upsample_kernel_sizes: list[int]
     use_spectral_norm: bool
     gin_channels: int
     spk_embed_dim: int
@@ -479,20 +479,20 @@ class HParams(BaseModel):
     data: DataConfig
     model: ModelConfig
 
-    model_dir: Optional[str] = None
-    experiment_dir: Optional[str] = None
-    save_every_epoch: Optional[int] = None
-    name: Optional[str] = None
-    total_epoch: Optional[int] = None
-    pretrainG: Optional[str] = None
-    pretrainD: Optional[str] = None
-    version: Optional[str] = None
-    gpus: Optional[str] = None
-    sample_rate: Optional[str] = None
-    if_f0: Optional[int] = None
-    if_latest: Optional[int] = None
-    save_every_weights: Optional[str] = None
-    if_cache_data_in_gpu: Optional[int] = None
+    model_dir: str = ""
+    experiment_dir: str = ""
+    save_every_epoch: int = 0
+    name: str = ""
+    total_epoch: int = 0
+    pretrainG: str = ""
+    pretrainD: str = ""
+    version: str = ""
+    gpus: str = ""
+    sample_rate: Literal["32k", "40k", "48k"] = "40k"
+    if_f0: int = 0
+    if_latest: int = 0
+    save_every_weights: str = "0"
+    if_cache_data_in_gpu: int = 0
 
     def keys(self):
         return self.model_dump().keys()

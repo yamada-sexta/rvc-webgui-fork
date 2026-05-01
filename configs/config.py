@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import shutil
+from pathlib import Path
 from multiprocessing import cpu_count
 from functools import wraps
 from typing import TypeVar, cast
@@ -112,12 +113,14 @@ class Config:
     def load_config_json() -> tuple[HParams, HParams, HParams, HParams, HParams]:
         configs = []
         for config_file in version_config_list:
-            p = f"configs/inuse/{config_file}"
-            if not os.path.exists(p):
-                shutil.copy(f"configs/{config_file}", p)
-            with open(f"configs/inuse/{config_file}", "r") as f:
+            p = Path("configs/inuse") / config_file
+            if not p.exists():
+                p.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(Path("configs") / config_file, p)
+            with open(p, "r") as f:
                 configs.append(HParams.model_validate(json.load(f)))
-        return tuple(configs)
+        assert len(configs) == 5
+        return (configs[0], configs[1], configs[2], configs[3], configs[4])
 
     @staticmethod
     def arg_parse() -> tuple[str, int, bool, bool, bool]:
@@ -137,9 +140,10 @@ class Config:
             config.train.fp16_run = False
 
         for config_file in version_config_list:
-            with open(f"configs/inuse/{config_file}", "r") as f:
+            p = Path("configs/inuse") / config_file
+            with open(p, "r") as f:
                 strr = f.read().replace("true", "false")
-            with open(f"configs/inuse/{config_file}", "w") as f:
+            with open(p, "w") as f:
                 f.write(strr)
             logger.info(f"overwrite {config_file}")
         self.preprocess_per = 3.0
