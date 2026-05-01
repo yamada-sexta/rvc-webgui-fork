@@ -481,7 +481,7 @@ def click_train(
     if not pathlib.Path(config_save_path).exists():
         with open(config_save_path, "w", encoding="utf-8") as f:
             json.dump(
-                shared.config.json_config[config_path],
+                getattr(shared.config, config_path.replace('/', '_').replace('.json', '')).model_dump(exclude_none=True),
                 f,
                 ensure_ascii=False,
                 indent=4,

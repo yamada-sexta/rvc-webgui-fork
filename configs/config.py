@@ -4,7 +4,8 @@ import json
 import shutil
 from multiprocessing import cpu_count
 from functools import wraps
-from typing import TypeVar, TypedDict, cast
+from typing import TypeVar, cast
+from infer.lib.train.utils import HParams
 
 import torch
 from tap import Tap
@@ -22,12 +23,7 @@ version_config_list: list[str] = [
 T = TypeVar("T")
 
 
-class TrainConfig(TypedDict, total=False):
-    fp16_run: bool
 
-
-class VersionConfig(TypedDict, total=False):
-    train: TrainConfig
 
 
 class ConfigArgs(Tap):
@@ -73,7 +69,11 @@ class Config:
     use_jit: bool
     n_cpu: int
     gpu_name: str | None
-    json_config: dict[str, VersionConfig]
+    v1_32k: HParams
+    v1_40k: HParams
+    v1_48k: HParams
+    v2_48k: HParams
+    v2_32k: HParams
     gpu_mem: int | None
 
     python_cmd: str
@@ -95,7 +95,7 @@ class Config:
         self.use_jit: bool = False
         self.n_cpu: int = 0
         self.gpu_name: str | None = None
-        self.json_config: dict[str, VersionConfig] = self.load_config_json()
+        self.v1_32k, self.v1_40k, self.v1_48k, self.v2_48k, self.v2_32k = self.load_config_json()
         self.gpu_mem: int | None = None
         (
             self.python_cmd,
@@ -109,15 +109,15 @@ class Config:
         self.x_pad, self.x_query, self.x_center, self.x_max = self.device_config()
 
     @staticmethod
-    def load_config_json() -> dict[str, VersionConfig]:
-        d: dict[str, VersionConfig] = {}
+    def load_config_json() -> tuple[HParams, HParams, HParams, HParams, HParams]:
+        configs = []
         for config_file in version_config_list:
             p = f"configs/inuse/{config_file}"
             if not os.path.exists(p):
                 shutil.copy(f"configs/{config_file}", p)
             with open(f"configs/inuse/{config_file}", "r") as f:
-                d[config_file] = cast(VersionConfig, json.load(f))
-        return d
+                configs.append(HParams.model_validate(json.load(f)))
+        return tuple(configs)
 
     @staticmethod
     def arg_parse() -> tuple[str, int, bool, bool, bool]:
@@ -133,8 +133,10 @@ class Config:
         )
 
     def use_fp32_config(self):
+        for config in [self.v1_32k, self.v1_40k, self.v1_48k, self.v2_48k, self.v2_32k]:
+            config.train.fp16_run = False
+
         for config_file in version_config_list:
-            self.json_config[config_file].setdefault("train", {})["fp16_run"] = False
             with open(f"configs/inuse/{config_file}", "r") as f:
                 strr = f.read().replace("true", "false")
             with open(f"configs/inuse/{config_file}", "w") as f:

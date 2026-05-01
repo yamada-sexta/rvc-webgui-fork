@@ -1,4 +1,7 @@
 import json
+
+from pydantic import BaseModel, ConfigDict
+from typing import Optional, List, Union
 import os
 import subprocess
 import sys
@@ -313,7 +316,7 @@ def get_hparams(init=True):
     with open(config_save_path, "r") as f:
         config = json.load(f)
 
-    hparams = HParams(**config)
+    hparams = HParams.model_validate(config)
     hparams.model_dir = hparams.experiment_dir = str(experiment_dir)
     hparams.save_every_epoch = args.save_every_epoch
     hparams.name = name
@@ -338,7 +341,7 @@ def get_hparams_from_dir(model_dir: Path):
         data = f.read()
     config = json.loads(data)
 
-    hparams = HParams(**config)
+    hparams = HParams.model_validate(config)
     hparams.model_dir = str(model_dir)
     return hparams
 
@@ -348,7 +351,7 @@ def get_hparams_from_file(config_path: Path):
         data = f.read()
     config = json.loads(data)
 
-    hparams = HParams(**config)
+    hparams = HParams.model_validate(config)
     return hparams
 
 
@@ -413,7 +416,9 @@ def get_logger(model_dir: str, filename: str = "train.log", *, stdout: bool = Fa
 
 def hparams_to_dict(value: Any) -> Any:
     if isinstance(value, HParams):
-        return {key: hparams_to_dict(item) for key, item in value.items()}
+        return value.model_dump()
+    if hasattr(value, "model_dump"):
+        return value.model_dump()
     if isinstance(value, dict):
         return {str(key): hparams_to_dict(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
@@ -421,43 +426,85 @@ def hparams_to_dict(value: Any) -> Any:
     return value
 
 
-class HParams:
-    model_dir: str
-    experiment_dir: str
-    save_every_epoch: int
-    name: str
-    total_epoch: int
-    pretrainG: str
-    pretrainD: str
-    version: str
-    gpus: str
-    train: "HParams"
-    batch_size: int
-    sample_rate: str
-    if_f0: int
-    if_latest: int
-    save_every_weights: str
-    if_cache_data_in_gpu: int
-    data: "HParams"
-    training_files: str
 
-    def __init__(self, **kwargs: object) -> None:
-        for k, v in kwargs.items():
-            if isinstance(v, dict):
-                v = HParams(**v)
-            self[k] = v
+class TrainConfig(BaseModel):
+    log_interval: int
+    seed: int
+    epochs: int
+    learning_rate: float
+    betas: List[float]
+    eps: float
+    batch_size: int
+    fp16_run: bool
+    lr_decay: float
+    segment_size: int
+    init_lr_ratio: int
+    warmup_epochs: int
+    c_mel: int
+    c_kl: float
+
+class DataConfig(BaseModel):
+    max_wav_value: float
+    sampling_rate: int
+    filter_length: int
+    hop_length: int
+    win_length: int
+    n_mel_channels: int
+    mel_fmin: float
+    mel_fmax: Optional[float]
+    training_files: Optional[str] = None
+
+class ModelConfig(BaseModel):
+    inter_channels: int
+    hidden_channels: int
+    filter_channels: int
+    n_heads: int
+    n_layers: int
+    kernel_size: int
+    p_dropout: float
+    resblock: str
+    resblock_kernel_sizes: List[int]
+    resblock_dilation_sizes: List[List[int]]
+    upsample_rates: List[int]
+    upsample_initial_channel: int
+    upsample_kernel_sizes: List[int]
+    use_spectral_norm: bool
+    gin_channels: int
+    spk_embed_dim: int
+
+class HParams(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    train: TrainConfig
+    data: DataConfig
+    model: ModelConfig
+
+    model_dir: Optional[str] = None
+    experiment_dir: Optional[str] = None
+    save_every_epoch: Optional[int] = None
+    name: Optional[str] = None
+    total_epoch: Optional[int] = None
+    pretrainG: Optional[str] = None
+    pretrainD: Optional[str] = None
+    version: Optional[str] = None
+    gpus: Optional[str] = None
+    sample_rate: Optional[str] = None
+    if_f0: Optional[int] = None
+    if_latest: Optional[int] = None
+    save_every_weights: Optional[str] = None
+    if_cache_data_in_gpu: Optional[int] = None
 
     def keys(self):
-        return self.__dict__.keys()
+        return self.model_dump().keys()
 
     def items(self):
-        return self.__dict__.items()
+        return self.model_dump().items()
 
     def values(self):
-        return self.__dict__.values()
+        return self.model_dump().values()
 
     def __len__(self):
-        return len(self.__dict__)
+        return len(self.model_dump())
 
     def __getitem__(self, key):
         return getattr(self, key)
@@ -466,7 +513,4 @@ class HParams:
         return setattr(self, key, value)
 
     def __contains__(self, key):
-        return key in self.__dict__
-
-    def __repr__(self):
-        return self.__dict__.__repr__()
+        return hasattr(self, key)
