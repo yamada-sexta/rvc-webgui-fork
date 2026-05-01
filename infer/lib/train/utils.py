@@ -355,7 +355,7 @@ def get_hparams_from_file(config_path: Path):
     return hparams
 
 
-def check_git_hash(model_dir: str):
+def check_git_hash(model_dir: str | None):
     source_dir = Path(os.path.realpath(__file__)).parent
     git_check = subprocess.run(
         ["git", "-C", str(source_dir), "rev-parse", "--show-toplevel"],
@@ -370,7 +370,7 @@ def check_git_hash(model_dir: str):
         text=True,
     ).strip()
 
-    git_hash_file = Path(model_dir) / "githash"
+    git_hash_file = Path(model_dir or "") / "githash"
     if git_hash_file.exists():
         saved_hash = git_hash_file.read_text()
         if saved_hash != cur_hash:
@@ -381,8 +381,8 @@ def check_git_hash(model_dir: str):
         git_hash_file.write_text(cur_hash)
 
 
-def get_logger(model_dir: str, filename: str = "train.log", *, stdout: bool = False):
-    log_dir = Path(model_dir)
+def get_logger(model_dir: str | None, filename: str = "train.log", *, stdout: bool = False):
+    log_dir = Path(model_dir or "")
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / filename
     logger.remove()
@@ -479,15 +479,15 @@ class HParams(BaseModel):
     data: DataConfig
     model: ModelConfig
 
-    model_dir: str = ""
-    experiment_dir: str = ""
+    model_dir: str | None | None = None
+    experiment_dir: str | None = None
     save_every_epoch: int = 0
-    name: str = ""
+    name: str | None = None
     total_epoch: int = 0
     pretrainG: str = ""
     pretrainD: str = ""
-    version: str = ""
-    gpus: str = ""
+    version: str | None = None
+    gpus: str | None = None
     sample_rate: Literal["32k", "40k", "48k"] = "40k"
     if_f0: int = 0
     if_latest: int = 0

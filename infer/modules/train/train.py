@@ -85,8 +85,8 @@ class EpochRecorder:
 
 
 def main():
-    training_logger = utils.get_logger(hps.model_dir, stdout=True)
-    if "-" in hps.gpus:
+    training_logger = utils.get_logger(hps.model_dir or "", stdout=True)
+    if hps.gpus and "-" in hps.gpus:
         training_logger.warning(
             f"Multiple GPU ids were requested ({hps.gpus}), but training now runs in a single subprocess on GPU {selected_gpu} to avoid race conditions."
         )
@@ -117,7 +117,7 @@ def run(hps, training_logger):
         fraction=0.0,
         message="Preparing training data and models...",
     ).info("Preparing training setup")
-    utils.check_git_hash(hps.model_dir)
+    utils.check_git_hash(hps.model_dir or "")
     torch.manual_seed(hps.train.seed)
     if torch.cuda.is_available():
         torch.cuda.set_device(0)
@@ -176,12 +176,12 @@ def run(hps, training_logger):
     )
     try:  # If it can load, automatically resume
         _, _, _, epoch_str = utils.load_checkpoint(
-            utils.latest_checkpoint_path(hps.model_dir, "D_*.pth"), net_d, optim_d
+            utils.latest_checkpoint_path(Path(hps.model_dir or ""), "D_*.pth"), net_d, optim_d
         )  # D mostly loads fine
         training_logger.info("Loaded discriminator checkpoint")
-        # _, _, _, epoch_str = utils.load_checkpoint(utils.latest_checkpoint_path(hps.model_dir, "G_*.pth"), net_g, optim_g,load_opt=0)
+        # _, _, _, epoch_str = utils.load_checkpoint(utils.latest_checkpoint_path(Path(hps.model_dir or ""), "G_*.pth"), net_g, optim_g,load_opt=0)
         _, _, _, epoch_str = utils.load_checkpoint(
-            utils.latest_checkpoint_path(hps.model_dir, "G_*.pth"), net_g, optim_g
+            utils.latest_checkpoint_path(Path(hps.model_dir or ""), "G_*.pth"), net_g, optim_g
         )
         global_step = (epoch_str - 1) * len(train_loader)
         # epoch_str = 1
@@ -528,7 +528,7 @@ def train_and_evaluate(
     # /Run steps
 
     if epoch % hps.save_every_epoch == 0:
-        model_dir = Path(hps.model_dir)
+        model_dir = Path(hps.model_dir or "")
         if hps.if_latest == 0:
             utils.save_checkpoint(
                 net_g,

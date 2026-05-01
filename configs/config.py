@@ -113,7 +113,7 @@ class Config:
     def load_config_json() -> tuple[HParams, HParams, HParams, HParams, HParams]:
         configs = []
         for config_file in version_config_list:
-            p = Path("configs/inuse") / config_file
+            p = Path("configs") / "inuse" / config_file
             if not p.exists():
                 p.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy(Path("configs") / config_file, p)
@@ -140,7 +140,7 @@ class Config:
             config.train.fp16_run = False
 
         for config_file in version_config_list:
-            p = Path("configs/inuse") / config_file
+            p = Path("configs") / "inuse" / config_file
             with open(p, "r") as f:
                 strr = f.read().replace("true", "false")
             with open(p, "w") as f:
