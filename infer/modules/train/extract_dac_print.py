@@ -1,6 +1,5 @@
 import sys
 from pathlib import Path
-from typing import Any, cast
 
 import torch
 from loguru import logger
@@ -97,10 +96,7 @@ for idx, wav_path in enumerate(todo):
             raise ValueError(f"{wav_path} SR {sampling_rate} != {args.sampling_rate}")
         audio = audio.unsqueeze(0).unsqueeze(0).to(accelerator.device)
         with torch.no_grad():
-            outputs = cast(
-                Any,
-                codec.codec.encode(codec._resample_for_codec(audio.clamp(-1.0, 1.0))),
-            )
+            outputs = codec.encode_outputs(audio)
             latents = outputs.quantized_representation.squeeze(0).float().cpu()
             codes = outputs.audio_codes.squeeze(0).long().cpu()
         save_file({"latents": latents, "codes": codes}, out_path)

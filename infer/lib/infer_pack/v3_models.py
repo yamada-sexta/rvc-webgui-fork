@@ -1,10 +1,19 @@
-from typing import Any, cast
+from typing import Protocol, cast
 
 import torch
 from torch import nn
 from torch.nn import functional as F
 
 from infer.lib.infer_pack import commons
+
+
+class DacEncoderOutputLike(Protocol):
+    quantized_representation: torch.Tensor
+    audio_codes: torch.Tensor
+
+
+class DacDecoderOutputLike(Protocol):
+    audio_values: torch.Tensor
 
 
 class FrozenDacCodec(nn.Module):
@@ -26,23 +35,25 @@ class FrozenDacCodec(nn.Module):
         target_length = max(1, round(audio.shape[-1] * self.codec_sample_rate / self.sample_rate))
         return F.interpolate(audio, size=target_length, mode="linear", align_corners=False)
 
-    def encode(self, audio: torch.Tensor) -> torch.Tensor:
+    def encode_outputs(self, audio: torch.Tensor) -> DacEncoderOutputLike:
         if audio.dim() == 2:
             audio = audio.unsqueeze(1)
         audio = self._resample_for_codec(audio.clamp(-1.0, 1.0))
-        outputs = cast(Any, self.codec.encode(audio))
-        return cast(torch.Tensor, outputs.quantized_representation)
+        return cast(DacEncoderOutputLike, self.codec.encode(audio))
+
+    def encode(self, audio: torch.Tensor) -> torch.Tensor:
+        return self.encode_outputs(audio).quantized_representation
 
     def decode(self, latents: torch.Tensor) -> torch.Tensor:
-        outputs = cast(Any, self.codec.decode(latents))
-        audio = cast(torch.Tensor, outputs.audio_values)
+        outputs = cast(DacDecoderOutputLike, self.codec.decode(latents))
+        audio = outputs.audio_values
         if audio.dim() == 2:
             audio = audio.unsqueeze(1)
         return audio
 
     def decode_codes(self, audio_codes: torch.Tensor) -> torch.Tensor:
-        outputs = cast(Any, self.codec.decode(audio_codes=audio_codes))
-        audio = cast(torch.Tensor, outputs.audio_values)
+        outputs = cast(DacDecoderOutputLike, self.codec.decode(audio_codes=audio_codes))
+        audio = outputs.audio_values
         if audio.dim() == 2:
             audio = audio.unsqueeze(1)
         return audio
