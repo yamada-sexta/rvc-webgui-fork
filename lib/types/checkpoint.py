@@ -4,8 +4,10 @@ from typing import NotRequired, TypedDict, cast
 import torch
 
 
+type DacSynthesizerConfig = dict[str, int | float | str]
 type SynthesizerConfigValue = int | float | str | list[int] | list[list[int]] | None
 type SynthesizerConfig = list[SynthesizerConfigValue]
+type RvcConfig = SynthesizerConfig | DacSynthesizerConfig
 type SynthesizerConfigArgs = tuple[
     int,
     int,
@@ -51,7 +53,7 @@ type RvcVersion = str
 
 
 class RvcCheckpoint(TypedDict):
-    config: SynthesizerConfig
+    config: RvcConfig
     weight: WeightMap
     f0: NotRequired[int]
     version: NotRequired[RvcVersion]
@@ -74,3 +76,9 @@ def synthesizer_config_args_with_sr(
 
 def synthesizer_target_sr(config: SynthesizerConfig) -> int:
     return cast(int, config[-1])
+
+
+def checkpoint_target_sr(config: RvcConfig) -> int:
+    if isinstance(config, dict):
+        return int(config["sampling_rate"])
+    return synthesizer_target_sr(config)

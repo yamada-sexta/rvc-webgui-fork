@@ -16,13 +16,16 @@ from .types import (
 def get_synthesizer(
     cpt: RvcCheckpoint, device: int | str | torch.device = torch.device("cpu")
 ) -> tuple[SynthesizerTrnMsNSFsid, RvcCheckpoint]:
-    cpt["config"][-3] = cpt["weight"]["emb_g.weight"].shape[0]
+    config = cpt["config"]
+    if not isinstance(config, list):
+        raise ValueError("Only v2 list-config checkpoints can be loaded by get_synthesizer.")
+    config[-3] = cpt["weight"]["emb_g.weight"].shape[0]
     if_f0 = cpt.get("f0", 1)
     version = cpt.get("version", "v2")
     if version != "v2" or if_f0 != 1:
         raise ValueError("Only v2 models with f0 are supported.")
     net_g = SynthesizerTrnMsNSFsid(
-        *synthesizer_config_args(cpt["config"]),
+        *synthesizer_config_args(config),
         encoder_dim=768,
         use_f0=True,
     )

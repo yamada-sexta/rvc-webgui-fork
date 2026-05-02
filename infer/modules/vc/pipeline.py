@@ -6,6 +6,7 @@ from typing import Protocol, TypeAlias
 
 from configs.config import Config
 from infer.lib.infer_pack.models import SynthesizerTrnMs768NSFsid
+from infer.lib.infer_pack.v3_models import TransformerDacGenerator
 
 import gradio as gr
 from loguru import logger
@@ -34,7 +35,7 @@ class NamedFile(Protocol):
     name: str
 
 
-RVCModel: TypeAlias = SynthesizerTrnMs768NSFsid
+RVCModel: TypeAlias = SynthesizerTrnMs768NSFsid | TransformerDacGenerator
 
 
 def change_rms(
@@ -127,8 +128,8 @@ class Pipeline:
         version: str,
         protect: float,
     ) -> np.ndarray:  # ,file_index,file_big_npy
-        if version != "v2":
-            raise ValueError("Only v2 models with f0 are supported.")
+        if version not in {"v2", "v3"}:
+            raise ValueError("Only v2/v3 models with f0 are supported.")
         feats = torch.from_numpy(audio)
         if self.is_half:
             try:
@@ -204,10 +205,28 @@ class Pipeline:
             feats = feats.to(feats0.dtype)
         p_len = torch.tensor([p_len], device=self.device).long()
         with torch.no_grad():
-            hasp = pitch is not None and pitchf is not None
-            arg = (feats, p_len, pitch, pitchf, sid) if hasp else (feats, p_len, sid)
-            audio1: np.ndarray = (net_g.infer(*arg)[0][0, 0]).data.cpu().float().numpy()
-            del hasp, arg
+            if version == "v3":
+                if not isinstance(net_g, TransformerDacGenerator):
+                    raise ValueError("V3 inference requires TransformerDacGenerator.")
+                if pitch is None or pitchf is None:
+                    raise ValueError("V3 inference requires pitch inputs.")
+                y_hat, _, _ = net_g(
+                    feats,
+                    p_len,
+                    pitch,
+                    pitchf,
+                    None,
+                    None,
+                    sid,
+                )
+                audio1 = y_hat[0, 0].data.cpu().float().numpy()
+            else:
+                if not isinstance(net_g, SynthesizerTrnMs768NSFsid):
+                    raise ValueError("V2 inference requires SynthesizerTrnMs768NSFsid.")
+                hasp = pitch is not None and pitchf is not None
+                arg = (feats, p_len, pitch, pitchf, sid) if hasp else (feats, p_len, sid)
+                audio1 = (net_g.infer(*arg)[0][0, 0]).data.cpu().float().numpy()
+                del hasp, arg
         del feats, p_len, padding_mask
         empty_cache()
         t2 = ttime()

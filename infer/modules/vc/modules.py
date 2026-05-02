@@ -9,6 +9,7 @@ from loguru import logger
 from configs.config import Config
 from lib.types import (
     RvcCheckpoint,
+    checkpoint_target_sr,
     synthesizer_config_args,
     synthesizer_config_args_with_sr,
     synthesizer_target_sr,
@@ -19,6 +20,7 @@ import torch
 from infer.lib.infer_pack.models import (
     SynthesizerTrnMs768NSFsid,
 )
+from infer.lib.infer_pack.v3_models import FrozenDacCodec, TransformerDacGenerator
 from infer.modules.vc.pipeline import Pipeline
 from infer.modules.vc.utils import *
 from lib.accelerate_utils import empty_cache, get_device, use_half_precision
@@ -57,9 +59,7 @@ class VC:
         # self.config = config
         self.n_spk: int | None = None
         self.tgt_sr: int | None = None
-        self.net_g: (
-            SynthesizerTrnMs768NSFsid | None
-        ) = None
+        self.net_g: SynthesizerTrnMs768NSFsid | TransformerDacGenerator | None = None
         self.pipeline: Pipeline | None = None
         self.cpt: RvcCheckpoint | None = None
         self.version: str = "UNKNOWN"
@@ -105,6 +105,8 @@ class VC:
                 if cpt is not None:
                     self.version = cpt.get("version", "v2")
                     if self.version == "v2" and cpt.get("f0", 1) == 1:
+                        if not isinstance(cpt["config"], list):
+                            raise ValueError("V2 checkpoint config must be a list.")
                         self.net_g = SynthesizerTrnMs768NSFsid(
                             *synthesizer_config_args_with_sr(cpt["config"]),
                             is_half=use_half_precision(),
@@ -127,18 +129,40 @@ class VC:
         self.cpt = cast(
             RvcCheckpoint, torch.load(person, map_location="cpu", weights_only=False)
         )
-        self.tgt_sr = synthesizer_target_sr(self.cpt["config"])
-        self.cpt["config"][-3] = self.cpt["weight"]["emb_g.weight"].shape[0]  # n_spk
         self.version = self.cpt.get("version", "v2")
-        if self.version != "v2" or self.cpt.get("f0", 1) != 1:
-            raise ValueError("Only v2 models with f0 are supported.")
-
-        self.net_g = SynthesizerTrnMs768NSFsid(
-            *synthesizer_config_args_with_sr(self.cpt["config"]),
-            is_half=use_half_precision(),
-        )
-
-        del self.net_g.enc_q
+        self.tgt_sr = checkpoint_target_sr(self.cpt["config"])
+        if self.version == "v3":
+            v3_config = self.cpt["config"]
+            if not isinstance(v3_config, dict):
+                raise ValueError("V3 checkpoint config must be a dict.")
+            codec = FrozenDacCodec(
+                int(v3_config["sampling_rate"]),
+                str(v3_config["dac_model_type"]),
+            )
+            self.net_g = TransformerDacGenerator(
+                int(v3_config["phone_channels"]),
+                int(v3_config["hidden_channels"]),
+                int(v3_config["transformer_ffn_channels"]),
+                int(v3_config["n_heads"]),
+                int(v3_config["transformer_layers"]),
+                0.0,
+                int(v3_config["spk_embed_dim"]),
+                0,
+                int(v3_config["dac_latent_dim"]),
+                codec,
+            )
+        elif self.version == "v2" and self.cpt.get("f0", 1) == 1:
+            v2_config = self.cpt["config"]
+            if not isinstance(v2_config, list):
+                raise ValueError("V2 checkpoint config must be a list.")
+            v2_config[-3] = self.cpt["weight"]["emb_g.weight"].shape[0]  # n_spk
+            self.net_g = SynthesizerTrnMs768NSFsid(
+                *synthesizer_config_args_with_sr(v2_config),
+                is_half=use_half_precision(),
+            )
+            del self.net_g.enc_q
+        else:
+            raise ValueError("Only v2/v3 models with f0 are supported.")
 
         self.net_g.load_state_dict(self.cpt["weight"], strict=False)
         self.net_g.eval().to(get_device())
@@ -154,7 +178,7 @@ class VC:
         else:
             self.net_g = self.net_g.float()
 
-        self.pipeline = Pipeline(synthesizer_target_sr(self.cpt["config"]), self.config)
+        self.pipeline = Pipeline(self.tgt_sr, self.config)
         # n_spk = self.cpt["config"][-3]
         index = {"value": get_index_path_from_model(sid), "__type__": "update"}
         logger.info(f"Select index: {index['value']}")

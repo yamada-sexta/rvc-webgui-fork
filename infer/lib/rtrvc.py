@@ -101,6 +101,8 @@ class RVC:
 
         def set_default_model() -> None:
             self.net_g, cpt = load_synthesizer(self.pth_path, self.device)
+            if not isinstance(cpt["config"], list):
+                raise ValueError("Only v2 list-config checkpoints are supported for realtime VC.")
             self.tgt_sr = synthesizer_target_sr(cpt["config"])
             cpt["config"][-3] = cpt["weight"]["emb_g.weight"].shape[0]
             self.version = cpt.get("version", "v2")
