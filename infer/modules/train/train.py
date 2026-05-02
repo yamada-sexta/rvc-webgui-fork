@@ -123,7 +123,6 @@ def run(hps, training_logger):
         persistent_workers=num_workers > 0,
         prefetch_factor=prefetch_factor if num_workers > 0 else None,
     )
-    if hps.version == "v3":
         dac_codec = FrozenDacCodec(hps.data.sampling_rate, hps.model.dac_model_type)
         net_g = TransformerDacGenerator(
             768,
@@ -138,6 +137,7 @@ def run(hps, training_logger):
             hps.model.dac_num_codebooks,
             hps.model.dac_codebook_size,
         )
+        net_d = None
     else:
         dac_codec = None
         net_g = RVC_Model_f0(
@@ -161,7 +161,8 @@ def run(hps, training_logger):
             is_half=use_fp16,
             sr=hps.sample_rate,
         )
-    net_d = MultiPeriodDiscriminator(hps.model.use_spectral_norm)
+        net_d = MultiPeriodDiscriminator(hps.model.use_spectral_norm)
+        
     trainable_g_params = [parameter for parameter in net_g.parameters() if parameter.requires_grad]
     frozen_g_params = [parameter for parameter in net_g.parameters() if not parameter.requires_grad]
     training_logger.info(
@@ -177,71 +178,104 @@ def run(hps, training_logger):
         betas=hps.train.betas,
         eps=hps.train.eps,
     )
-    optim_d = torch.optim.AdamW(
-        net_d.parameters(),
-        hps.train.learning_rate,
-        betas=hps.train.betas,
-        eps=hps.train.eps,
-    )
-    try:  # If it can load, automatically resume
-        _, _, _, epoch_str = utils.load_checkpoint(
-            utils.latest_checkpoint_path(hps.model_dir, "D_*.pth"), net_d, optim_d
-        )  # D mostly loads fine
-        training_logger.info("Loaded discriminator checkpoint")
-        # _, _, _, epoch_str = utils.load_checkpoint(utils.latest_checkpoint_path(hps.model_dir, "G_*.pth"), net_g, optim_g,load_opt=0)
-        _, _, _, epoch_str = utils.load_checkpoint(
-            utils.latest_checkpoint_path(hps.model_dir, "G_*.pth"), net_g, optim_g
+    if net_d is not None:
+        optim_d = torch.optim.AdamW(
+            net_d.parameters(),
+            hps.train.learning_rate,
+            betas=hps.train.betas,
+            eps=hps.train.eps,
         )
-        global_step = (epoch_str - 1) * len(train_loader)
-        # epoch_str = 1
-        # global_step = 0
-    except:  # If it can't load the first time, load pretrain
-        # traceback.print_exc()
-        epoch_str = 1
-        global_step = 0
-        if hps.pretrainG != "":
-            training_logger.info(f"Loading pretrained generator from {hps.pretrainG}")
-            training_logger.info(
-                net_g.load_state_dict(
-                    torch.load(hps.pretrainG, map_location="cpu", weights_only=False)[
-                        "model"
-                    ]
-                )
+        try:  # If it can load, automatically resume
+            _, _, _, epoch_str = utils.load_checkpoint(
+                utils.latest_checkpoint_path(hps.model_dir, "D_*.pth"), net_d, optim_d
+            )  # D mostly loads fine
+            training_logger.info("Loaded discriminator checkpoint")
+            # _, _, _, epoch_str = utils.load_checkpoint(utils.latest_checkpoint_path(hps.model_dir, "G_*.pth"), net_g, optim_g,load_opt=0)
+            _, _, _, epoch_str = utils.load_checkpoint(
+                utils.latest_checkpoint_path(hps.model_dir, "G_*.pth"), net_g, optim_g
             )
-        if hps.pretrainD != "":
-            training_logger.info(f"Loading pretrained discriminator from {hps.pretrainD}")
-            training_logger.info(
-                net_d.load_state_dict(
-                    torch.load(hps.pretrainD, map_location="cpu", weights_only=False)[
-                        "model"
-                    ]
+            global_step = (epoch_str - 1) * len(train_loader)
+            # epoch_str = 1
+            # global_step = 0
+        except:  # If it can't load the first time, load pretrain
+            # traceback.print_exc()
+            epoch_str = 1
+            global_step = 0
+            if hps.pretrainG != "":
+                training_logger.info(f"Loading pretrained generator from {hps.pretrainG}")
+                training_logger.info(
+                    net_g.load_state_dict(
+                        torch.load(hps.pretrainG, map_location="cpu", weights_only=False)[
+                            "model"
+                        ]
+                    )
                 )
+            if hps.pretrainD != "":
+                training_logger.info(f"Loading pretrained discriminator from {hps.pretrainD}")
+                training_logger.info(
+                    net_d.load_state_dict(
+                        torch.load(hps.pretrainD, map_location="cpu", weights_only=False)[
+                            "model"
+                        ]
+                    )
+                )
+    else:
+        optim_d = None
+        try:
+            _, _, _, epoch_str = utils.load_checkpoint(
+                utils.latest_checkpoint_path(hps.model_dir, "G_*.pth"), net_g, optim_g
             )
+            global_step = (epoch_str - 1) * len(train_loader)
+        except:
+            epoch_str = 1
+            global_step = 0
+            if hps.pretrainG != "":
+                training_logger.info(f"Loading pretrained generator from {hps.pretrainG}")
+                training_logger.info(
+                    net_g.load_state_dict(
+                        torch.load(hps.pretrainG, map_location="cpu", weights_only=False)[
+                            "model"
+                        ]
+                    )
+                )
 
     scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
         optim_g, gamma=hps.train.lr_decay, last_epoch=epoch_str - 2
     )
-    scheduler_d = torch.optim.lr_scheduler.ExponentialLR(
-        optim_d, gamma=hps.train.lr_decay, last_epoch=epoch_str - 2
-    )
-
-    (
-        net_g,
-        net_d,
-        optim_g,
-        optim_d,
-        train_loader,
-        scheduler_g,
-        scheduler_d,
-    ) = accelerator.prepare(
-        net_g,
-        net_d,
-        optim_g,
-        optim_d,
-        train_loader,
-        scheduler_g,
-        scheduler_d,
-    )
+    if optim_d is not None:
+        scheduler_d = torch.optim.lr_scheduler.ExponentialLR(
+            optim_d, gamma=hps.train.lr_decay, last_epoch=epoch_str - 2
+        )
+        (
+            net_g,
+            net_d,
+            optim_g,
+            optim_d,
+            train_loader,
+            scheduler_g,
+            scheduler_d,
+        ) = accelerator.prepare(
+            net_g,
+            net_d,
+            optim_g,
+            optim_d,
+            train_loader,
+            scheduler_g,
+            scheduler_d,
+        )
+    else:
+        scheduler_d = None
+        (
+            net_g,
+            optim_g,
+            train_loader,
+            scheduler_g,
+        ) = accelerator.prepare(
+            net_g,
+            optim_g,
+            train_loader,
+            scheduler_g,
+        )
 
     target_total_epoch = int(hps.total_epoch)
     if epoch_str > target_total_epoch:
@@ -288,7 +322,8 @@ def train_and_evaluate(
     global global_step
 
     net_g.train()
-    net_d.train()
+    if net_d is not None:
+        net_d.train()
 
     # Prepare data iterator
     data_iterator = enumerate(train_loader)
@@ -347,7 +382,7 @@ def train_and_evaluate(
                     torch.rand(phone_lengths.shape[0], device=phone_lengths.device)
                     * (max_start + 1).to(torch.float32)
                 ).to(torch.long)
-                dac_logits, _ = net_g(
+                dac_logits, padding_mask = net_g(
                     phone,
                     phone_lengths,
                     pitch,
@@ -359,10 +394,6 @@ def train_and_evaluate(
                     segment_frames,
                     target_frames,
                 )
-                quantized = codec.logits_to_quantized(dac_logits)
-                y_hat = codec.decode(quantized)
-                wave = commons.slice_segments(wave, ids_slice * codec.hop_length, y_hat.shape[-1])
-                y_hat = y_hat[..., : wave.shape[-1]]
                 target_codes = commons.slice_segments(
                     target_codes_full,
                     ids_slice,
@@ -404,38 +435,57 @@ def train_and_evaluate(
                 if use_half_precision():
                     y_hat_mel = y_hat_mel.half()
 
-            # Discriminator
-            y_d_hat_r, y_d_hat_g, _, _ = net_d(wave, y_hat.detach())
-            with nullcontext():
-                loss_disc, losses_disc_r, losses_disc_g = discriminator_loss(
-                    y_d_hat_r, y_d_hat_g
-                )
-        optim_d.zero_grad()
-        accelerator.backward(loss_disc)
-        grad_norm_d = commons.clip_grad_value_(net_d.parameters(), None)
-        optim_d.step()
+            if net_d is not None:
+                # Discriminator
+                y_d_hat_r, y_d_hat_g, _, _ = net_d(wave, y_hat.detach())
+                with nullcontext():
+                    loss_disc, losses_disc_r, losses_disc_g = discriminator_loss(
+                        y_d_hat_r, y_d_hat_g
+                    )
+        
+        if net_d is not None:
+            optim_d.zero_grad()
+            accelerator.backward(loss_disc)
+            grad_norm_d = commons.clip_grad_value_(net_d.parameters(), None)
+            optim_d.step()
 
         with accelerator.autocast():
             # Generator
-            y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = net_d(wave, y_hat)
             with nullcontext():
                 if hps.version == "v3":
                     assert dac_logits is not None
                     assert target_codes is not None
                     length = min(dac_logits.shape[-1], target_codes.shape[-1])
-                    loss_recon = (
-                        F.cross_entropy(
-                            dac_logits[..., :length]
-                            .permute(0, 1, 3, 2)
-                            .reshape(-1, dac_logits.shape[2]),
-                            target_codes[..., :length].reshape(-1),
-                        )
-                        * hps.train.c_dac
-                    )
+                    
+                    # Compute cross entropy ONLY on valid tokens using padding_mask
+                    # padding_mask shape from net_g is (batch, target_frames), where True is valid (we'll fix v3_models to output this)
+                    # wait, padding_mask is returned from net_g. Let's make it True for padding, False for valid (PyTorch convention)
+                    # dac_logits shape: (batch, num_codebooks, codebook_size, frames)
+                    
+                    logits_to_loss = dac_logits[..., :length].permute(0, 1, 3, 2) # (B, num_cb, frames, cb_size)
+                    targets_to_loss = target_codes[..., :length] # (B, num_cb, frames)
+                    
+                    if padding_mask is not None:
+                        # padding_mask: (B, length) -> True for padded
+                        valid_mask = ~padding_mask[:, :length] # (B, length)
+                        valid_mask = valid_mask.unsqueeze(1).expand(-1, targets_to_loss.shape[1], -1) # (B, num_cb, length)
+                        
+                        logits_to_loss = logits_to_loss[valid_mask] # (valid_tokens, cb_size)
+                        targets_to_loss = targets_to_loss[valid_mask] # (valid_tokens,)
+                    else:
+                        logits_to_loss = logits_to_loss.reshape(-1, logits_to_loss.shape[-1])
+                        targets_to_loss = targets_to_loss.reshape(-1)
+
+                    loss_recon = F.cross_entropy(logits_to_loss, targets_to_loss) * hps.train.c_dac
+                    
                     loss_mel = loss_recon
                     recon_name = "dac"
-                    loss_kl = y_hat.new_zeros(())
+                    loss_kl = dac_logits.new_zeros(())
+                    loss_gen_all = loss_recon
+                    loss_gen = dac_logits.new_zeros(())
+                    loss_fm = dac_logits.new_zeros(())
                 else:
+                    y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = net_d(wave, y_hat)
                     assert y_mel is not None
                     assert y_hat_mel is not None
                     loss_recon = F.l1_loss(y_mel, y_hat_mel) * hps.train.c_mel
@@ -448,15 +498,16 @@ def train_and_evaluate(
                         cast(torch.Tensor, logs_p),
                         cast(torch.Tensor, z_mask),
                     ) * hps.train.c_kl
-                loss_fm = feature_loss(fmap_r, fmap_g)
-                loss_gen, losses_gen = generator_loss(y_d_hat_g)
-                loss_gen_all = loss_gen + loss_fm + loss_recon + loss_kl
+                    loss_fm = feature_loss(fmap_r, fmap_g)
+                    loss_gen, losses_gen = generator_loss(y_d_hat_g)
+                    loss_gen_all = loss_gen + loss_fm + loss_recon + loss_kl
         optim_g.zero_grad()
         accelerator.backward(loss_gen_all)
         grad_norm_g = commons.clip_grad_value_(net_g.parameters(), None)
         optim_g.step()
 
-        schedulers[1].step()
+        if scheduler_d is not None:
+            schedulers[1].step()
         schedulers[0].step()
 
         if global_step % hps.train.log_interval == 0:
@@ -483,7 +534,7 @@ def train_and_evaluate(
                 ),
                 global_step=global_step,
                 learning_rate=lr,
-                loss_disc=round(float(loss_disc), 4),
+                loss_disc=round(float(loss_disc), 4) if net_d is not None else 0.0,
                 loss_gen=round(float(loss_gen), 4),
                 loss_fm=round(float(loss_fm), 4),
                 loss_mel=round(loss_recon_value, 4),
@@ -516,7 +567,7 @@ def train_and_evaluate(
     if epoch % hps.save_every_epoch == 0:
         model_dir = hps.model_dir
         unwrapped_net_g = accelerator.unwrap_model(net_g)
-        unwrapped_net_d = accelerator.unwrap_model(net_d)
+        unwrapped_net_d = accelerator.unwrap_model(net_d) if net_d is not None else None
         if hps.if_latest == 0:
             utils.save_checkpoint(
                 unwrapped_net_g,
@@ -525,13 +576,14 @@ def train_and_evaluate(
                 epoch,
                 model_dir / f"G_{global_step}.pth",
             )
-            utils.save_checkpoint(
-                unwrapped_net_d,
-                optim_d,
-                hps.train.learning_rate,
-                epoch,
-                model_dir / f"D_{global_step}.pth",
-            )
+            if unwrapped_net_d is not None:
+                utils.save_checkpoint(
+                    unwrapped_net_d,
+                    optim_d,
+                    hps.train.learning_rate,
+                    epoch,
+                    model_dir / f"D_{global_step}.pth",
+                )
         else:
             utils.save_checkpoint(
                 unwrapped_net_g,
@@ -540,13 +592,14 @@ def train_and_evaluate(
                 epoch,
                 model_dir / f"G_{2333333}.pth",
             )
-            utils.save_checkpoint(
-                unwrapped_net_d,
-                optim_d,
-                hps.train.learning_rate,
-                epoch,
-                model_dir / f"D_{2333333}.pth",
-            )
+            if unwrapped_net_d is not None:
+                utils.save_checkpoint(
+                    unwrapped_net_d,
+                    optim_d,
+                    hps.train.learning_rate,
+                    epoch,
+                    model_dir / f"D_{2333333}.pth",
+                )
         if hps.save_every_weights == "1":
             ckpt = unwrapped_net_g.state_dict()
             saved_path = savee(

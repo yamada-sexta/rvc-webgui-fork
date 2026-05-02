@@ -125,18 +125,15 @@ class TransformerDacGenerator(nn.Module):
         padding_mask = torch.arange(max_len, device=phone.device).unsqueeze(0) >= phone_lengths.unsqueeze(1)
         x = self.encoder(x, src_key_padding_mask=padding_mask)
         if target_frames is not None and x.shape[1] != target_frames:
+            ratio = target_frames / float(max_len)
+            new_lengths = torch.round(phone_lengths.float() * ratio).long()
             x = F.interpolate(
                 x.transpose(1, 2),
                 size=target_frames,
                 mode="linear",
                 align_corners=False,
             ).transpose(1, 2)
-            padding_mask = torch.zeros(
-                x.shape[0],
-                target_frames,
-                dtype=torch.bool,
-                device=x.device,
-            )
+            padding_mask = torch.arange(target_frames, device=x.device).unsqueeze(0) >= new_lengths.unsqueeze(1)
         logits = self.proj(self.norm(x))
         logits = logits.reshape(
             logits.shape[0],
@@ -148,13 +145,16 @@ class TransformerDacGenerator(nn.Module):
         if ids_slice is not None and segment_frames is not None:
             flat_logits = logits.flatten(1, 2)
             segments = []
+            mask_segments = []
             for batch_idx, start in enumerate(ids_slice):
                 start_int = int(start.item())
                 segments.append(flat_logits[batch_idx : batch_idx + 1, :, start_int : start_int + segment_frames])
+                mask_segments.append(padding_mask[batch_idx : batch_idx + 1, start_int : start_int + segment_frames])
             logits = torch.cat(segments, dim=0).reshape(
                 logits.shape[0],
                 self.dac_num_codebooks,
                 self.dac_codebook_size,
                 segment_frames,
             )
-        return logits, phone_lengths
+            padding_mask = torch.cat(mask_segments, dim=0)
+        return logits, padding_mask
