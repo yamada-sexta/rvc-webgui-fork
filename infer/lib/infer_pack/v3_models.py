@@ -73,6 +73,28 @@ class FrozenDacCodec(nn.Module):
             self.codec.to(device)
 
 
+class PositionalEncoding(nn.Module):
+    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
+        super().__init__()
+        import math
+        self.dropout = nn.Dropout(p=dropout)
+
+        position = torch.arange(max_len).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
+        pe = torch.zeros(1, max_len, d_model)
+        pe[0, :, 0::2] = torch.sin(position * div_term)
+        pe[0, :, 1::2] = torch.cos(position * div_term)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            x: Tensor, shape [batch_size, seq_len, embedding_dim]
+        """
+        x = x + cast(torch.Tensor, self.pe)[:, :x.size(1)]
+        return self.dropout(x)
+
+
 class TransformerDacGenerator(nn.Module):
     def __init__(
         self,
@@ -92,6 +114,7 @@ class TransformerDacGenerator(nn.Module):
         self.phone_proj = nn.Linear(phone_channels, hidden_channels)
         self.pitch_embed = nn.Embedding(256, hidden_channels)
         self.spk_embed = nn.Embedding(spk_embed_dim, hidden_channels)
+        self.pos_encoder = PositionalEncoding(hidden_channels, p_dropout)
         layer = nn.TransformerEncoderLayer(
             d_model=hidden_channels,
             nhead=n_heads,
@@ -122,8 +145,7 @@ class TransformerDacGenerator(nn.Module):
         x = self.phone_proj(phone) + self.pitch_embed(pitch)
         x = x + self.spk_embed(sid).unsqueeze(1)
         max_len = phone.shape[1]
-        padding_mask = torch.arange(max_len, device=phone.device).unsqueeze(0) >= phone_lengths.unsqueeze(1)
-        x = self.encoder(x, src_key_padding_mask=padding_mask)
+
         if target_frames is not None and x.shape[1] != target_frames:
             ratio = target_frames / float(max_len)
             new_lengths = torch.round(phone_lengths.float() * ratio).long()
@@ -134,6 +156,12 @@ class TransformerDacGenerator(nn.Module):
                 align_corners=False,
             ).transpose(1, 2)
             padding_mask = torch.arange(target_frames, device=x.device).unsqueeze(0) >= new_lengths.unsqueeze(1)
+        else:
+            padding_mask = torch.arange(max_len, device=phone.device).unsqueeze(0) >= phone_lengths.unsqueeze(1)
+
+        x = self.pos_encoder(x)
+        x = self.encoder(x, src_key_padding_mask=padding_mask)
+
         logits = self.proj(self.norm(x))
         logits = logits.reshape(
             logits.shape[0],
