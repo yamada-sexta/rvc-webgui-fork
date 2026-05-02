@@ -67,6 +67,7 @@ class FrozenDacCodec(nn.Module):
         self.sample_rate = sample_rate
         self.codec = DacModel.from_pretrained(model_id)
         self.codec_sample_rate = int(getattr(self.codec.config, "sampling_rate", 16000))
+        self.hop_length = int(getattr(self.codec.config, "hop_length", 512))
         self.codec.eval()
         for parameter in self.codec.parameters():
             parameter.requires_grad_(False)
@@ -136,6 +137,8 @@ class TransformerDacGenerator(nn.Module):
         spec: torch.Tensor,
         spec_lengths: torch.Tensor,
         sid: torch.Tensor,
+        ids_slice: torch.Tensor | None = None,
+        segment_frames: int | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         x = self.phone_proj(phone) + self.pitch_embed(pitch)
         x = x + self.spk_embed(sid).unsqueeze(1)
@@ -144,6 +147,8 @@ class TransformerDacGenerator(nn.Module):
         x = self.encoder(x, src_key_padding_mask=padding_mask)
         latents = self.proj(self.norm(x)).transpose(1, 2)
         latents = latents.masked_fill(padding_mask.unsqueeze(1), 0.0)
+        if ids_slice is not None and segment_frames is not None:
+            latents = commons.slice_segments(latents, ids_slice, segment_frames)
         self.codec.to_audio_device(latents.device)
         y_hat = self.codec.decode(latents)
         return y_hat, latents, phone_lengths
@@ -403,12 +408,29 @@ def train_and_evaluate(
         # Calculate
         with accelerator.autocast():
             if hps.version == "v3":
-                y_hat, dac_latents, _ = net_g(
-                    phone, phone_lengths, pitch, pitchf, spec, spec_lengths, sid
-                )
                 codec = net_g.module.codec if hasattr(net_g, "module") else net_g.codec
+                segment_size = round(
+                    hps.train.segment_size * codec.codec_sample_rate / hps.data.sampling_rate
+                )
+                segment_frames = max(1, segment_size // codec.hop_length)
+                max_start = torch.clamp(phone_lengths - segment_frames, min=0)
+                ids_slice = (
+                    torch.rand(phone_lengths.shape[0], device=phone_lengths.device)
+                    * (max_start + 1).to(torch.float32)
+                ).to(torch.long)
+                y_hat, dac_latents, _ = net_g(
+                    phone,
+                    phone_lengths,
+                    pitch,
+                    pitchf,
+                    spec,
+                    spec_lengths,
+                    sid,
+                    ids_slice,
+                    segment_frames,
+                )
                 wave = codec._resample_for_codec(wave.float())
-                wave = wave[..., : y_hat.shape[-1]]
+                wave = commons.slice_segments(wave, ids_slice * codec.hop_length, y_hat.shape[-1])
                 y_hat = y_hat[..., : wave.shape[-1]]
                 with torch.no_grad():
                     target_latents = codec.encode(wave)
