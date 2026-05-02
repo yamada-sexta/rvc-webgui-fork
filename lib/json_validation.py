@@ -3,8 +3,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel
 
-SampleRateName: TypeAlias = Literal["32k", "48k"]
-ModelVersion: TypeAlias = Literal["v2"]
+SampleRateName: TypeAlias = Literal["32k", "44k", "48k"]
+ModelVersion: TypeAlias = Literal["v2", "v3"]
 LogEventName: TypeAlias = Literal[
     "feature_args",
     "feature_empty",

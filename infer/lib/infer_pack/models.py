@@ -14,6 +14,7 @@ from torch.nn.utils import spectral_norm
 from torch.nn.utils.parametrize import remove_parametrizations
 from torch.nn.utils.parametrizations import weight_norm
 from infer.lib.infer_pack import attentions, commons, modules
+from infer.lib.infer_pack.bigvgan import BigVGANNSFGenerator
 from infer.lib.infer_pack.commons import get_padding, init_weights
 
 
@@ -605,6 +606,7 @@ class GeneratorNSF(torch.nn.Module):
 
 sr2sr = {
     "32k": 32000,
+    "44k": 44100,
     "40k": 40000,
     "48k": 48000,
 }
@@ -664,6 +666,7 @@ class SynthesizerTrnMs256NSFsid(nn.Module):
             kernel_size,
             float(p_dropout),
         )
+        self.dec: GeneratorNSF | BigVGANNSFGenerator
         self.dec = GeneratorNSF(
             inter_channels,
             resblock,
@@ -841,6 +844,64 @@ class SynthesizerTrnMs768NSFsid(SynthesizerTrnMs256NSFsid):
             n_layers,
             kernel_size,
             float(p_dropout),
+        )
+
+
+class SynthesizerTrnMs768BigVGANsid(SynthesizerTrnMs768NSFsid):
+    def __init__(
+        self,
+        spec_channels: int,
+        segment_size: int,
+        inter_channels: int,
+        hidden_channels: int,
+        filter_channels: int,
+        n_heads: int,
+        n_layers: int,
+        kernel_size: int,
+        p_dropout: float,
+        resblock: str,
+        resblock_kernel_sizes: Sequence[int],
+        resblock_dilation_sizes: Sequence[Sequence[int]],
+        upsample_rates: Sequence[int],
+        upsample_initial_channel: int,
+        upsample_kernel_sizes: Sequence[int],
+        spk_embed_dim: int,
+        gin_channels: int,
+        sr: str | int,
+        **kwargs: object,
+    ) -> None:
+        super().__init__(
+            spec_channels,
+            segment_size,
+            inter_channels,
+            hidden_channels,
+            filter_channels,
+            n_heads,
+            n_layers,
+            kernel_size,
+            p_dropout,
+            resblock,
+            resblock_kernel_sizes,
+            resblock_dilation_sizes,
+            upsample_rates,
+            upsample_initial_channel,
+            upsample_kernel_sizes,
+            spk_embed_dim,
+            gin_channels,
+            sr,
+            **kwargs,
+        )
+        self.dec = BigVGANNSFGenerator(
+            inter_channels,
+            resblock,
+            resblock_kernel_sizes,
+            resblock_dilation_sizes,
+            upsample_rates,
+            upsample_initial_channel,
+            upsample_kernel_sizes,
+            gin_channels=gin_channels,
+            sr=sr,
+            is_half=cast(bool, kwargs["is_half"]),
         )
 
 

@@ -15,8 +15,8 @@ i18n = I18nAuto()
 type WeightMap = dict[str, torch.Tensor]
 type CheckpointValue = WeightMap | list[object] | str | int
 type CheckpointDict = OrderedDict[str, CheckpointValue]
-type SampleRate = Literal["32k", "48k"]
-type ModelVersion = Literal["v2"]
+type SampleRate = Literal["32k", "44k", "48k"]
+type ModelVersion = Literal["v2", "v3"]
 
 
 class HParamsData(Protocol):
@@ -56,12 +56,12 @@ def savee(
     version: ModelVersion,
     hps: SaveHParams,
 ) -> str:
-    if int(if_f0) != 1 or version != "v2":
-        return "Only v2 models with f0 are supported."
+    if int(if_f0) != 1:
+        return "Only f0-enabled models are supported."
     try:
         weights: WeightMap = {}
         for key in ckpt.keys():
-            if "enc_q" in key:
+            if "enc_q" in key or "bigvgan." in key:
                 continue
             weights[key] = ckpt[key].half()
         opt: CheckpointDict = OrderedDict()
@@ -89,7 +89,7 @@ def savee(
         opt["info"] = "%sepoch" % epoch
         opt["sr"] = sr
         opt["f0"] = 1
-        opt["version"] = "v2"
+        opt["version"] = version
         torch.save(opt, Path("assets/weights") / f"{name}.pth")
         return "Success."
     except:
@@ -120,8 +120,8 @@ def extract_small_model(
     info: str,
     version: ModelVersion,
 ) -> str:
-    if int(if_f0) != 1 or version != "v2":
-        return "Only v2 models with f0 are supported."
+    if int(if_f0) != 1:
+        return "Only f0-enabled models are supported."
     try:
         ckpt = torch.load(path, map_location="cpu", weights_only=False)
         if "model" in ckpt:
@@ -129,12 +129,33 @@ def extract_small_model(
         ckpt = cast(WeightMap, ckpt)
         weights: WeightMap = {}
         for key in ckpt.keys():
-            if "enc_q" in key:
+            if "enc_q" in key or "bigvgan." in key:
                 continue
             weights[key] = ckpt[key].half()
         opt: CheckpointDict = OrderedDict()
         opt["weight"] = weights
-        if sr == "48k":
+        if version == "v3" and sr == "44k":
+            opt["config"] = [
+                1025,
+                32,
+                192,
+                192,
+                768,
+                2,
+                6,
+                3,
+                0,
+                "1",
+                [3, 7, 11],
+                [[1, 3, 5], [1, 3, 5], [1, 3, 5]],
+                [8, 8, 2, 2, 2],
+                512,
+                [16, 16, 4, 4, 4],
+                109,
+                256,
+                44100,
+            ]
+        elif sr == "48k":
             opt["config"] = [
                 1025,
                 32,
@@ -177,11 +198,11 @@ def extract_small_model(
                 32000,
             ]
         else:
-            return "Only v2 32k and 48k models are supported."
+            return "Only v2 32k/48k and v3 44k models are supported."
         if info == "":
             info = "Extracted model."
         opt["info"] = info
-        opt["version"] = "v2"
+        opt["version"] = version
         opt["sr"] = sr
         opt["f0"] = 1
         torch.save(opt, Path("assets/weights") / f"{name}.pth")
@@ -212,8 +233,8 @@ def merge(
     name: str,
     version: ModelVersion,
 ) -> str:
-    if f0 != i18n("Yes") or version != "v2":
-        return "Only v2 models with f0 are supported."
+    if f0 != i18n("Yes"):
+        return "Only f0-enabled models are supported."
     try:
 
         def extract(ckpt: dict[str, object]) -> CheckpointDict:
@@ -221,7 +242,7 @@ def merge(
             a = cast(WeightMap, a)
             weights: WeightMap = {}
             for key in a.keys():
-                if "enc_q" in key:
+                if "enc_q" in key or "bigvgan." in key:
                     continue
                 weights[key] = a[key]
             opt: CheckpointDict = OrderedDict()
@@ -261,7 +282,7 @@ def merge(
         opt["config"] = cfg
         opt["sr"] = sr
         opt["f0"] = 1
-        opt["version"] = "v2"
+        opt["version"] = version
         opt["info"] = info
         torch.save(opt, Path("assets/weights") / f"{name}.pth")
         return "Success."

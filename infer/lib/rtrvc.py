@@ -104,8 +104,8 @@ class RVC:
             self.tgt_sr = synthesizer_target_sr(cpt["config"])
             cpt["config"][-3] = cpt["weight"]["emb_g.weight"].shape[0]
             self.version = cpt.get("version", "v2")
-            if self.version != "v2" or cpt.get("f0", 1) != 1:
-                raise ValueError("Only v2 models with f0 are supported.")
+            if self.version not in {"v2", "v3"} or cpt.get("f0", 1) != 1:
+                raise ValueError("Only v2/v3 models with f0 are supported.")
             if self.is_half:
                 try:
                     self.net_g = self.net_g.half()
@@ -131,8 +131,8 @@ class RVC:
 
             self.tgt_sr = cpt["config"][-1]
             self.version = cpt.get("version", "v2")
-            if self.version != "v2" or cpt.get("f0", 1) != 1:
-                raise ValueError("Only v2 models with f0 are supported.")
+            if self.version not in {"v2", "v3"} or cpt.get("f0", 1) != 1:
+                raise ValueError("Only v2/v3 models with f0 are supported.")
             self.net_g = torch.jit.load(BytesIO(cpt["model"]), map_location=self.device)
             self.net_g.infer = self.net_g.forward
             self.net_g.eval().to(self.device)

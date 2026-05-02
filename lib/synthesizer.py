@@ -3,29 +3,29 @@ from typing import Any, Literal, cast
 
 import torch
 
-from .layers.synthesizers import SynthesizerTrnMsNSFsid
+from infer.lib.infer_pack.models import (
+    SynthesizerTrnMs768BigVGANsid,
+    SynthesizerTrnMs768NSFsid,
+)
 from .jit import load_inputs, export_jit_model, save_pickle
 from .types import (
     FileLike,
     JitRvcCheckpoint,
     RvcCheckpoint,
-    synthesizer_config_args,
+    synthesizer_config_args_with_sr,
 )
 
 
 def get_synthesizer(
     cpt: RvcCheckpoint, device: int | str | torch.device = torch.device("cpu")
-) -> tuple[SynthesizerTrnMsNSFsid, RvcCheckpoint]:
+) -> tuple[SynthesizerTrnMs768NSFsid | SynthesizerTrnMs768BigVGANsid, RvcCheckpoint]:
     cpt["config"][-3] = cpt["weight"]["emb_g.weight"].shape[0]
     if_f0 = cpt.get("f0", 1)
     version = cpt.get("version", "v2")
-    if version != "v2" or if_f0 != 1:
-        raise ValueError("Only v2 models with f0 are supported.")
-    net_g = SynthesizerTrnMsNSFsid(
-        *synthesizer_config_args(cpt["config"]),
-        encoder_dim=768,
-        use_f0=True,
-    )
+    if version not in {"v2", "v3"} or if_f0 != 1:
+        raise ValueError("Only v2/v3 models with f0 are supported.")
+    model_cls = SynthesizerTrnMs768BigVGANsid if version == "v3" else SynthesizerTrnMs768NSFsid
+    net_g = model_cls(*synthesizer_config_args_with_sr(cpt["config"]), is_half=False)
     del net_g.enc_q
     net_g.load_state_dict(cpt["weight"], strict=False)
     net_g = net_g.float()
@@ -36,7 +36,7 @@ def get_synthesizer(
 
 def load_synthesizer(
     pth_path: FileLike, device: int | str | torch.device = torch.device("cpu")
-) -> tuple[SynthesizerTrnMsNSFsid, RvcCheckpoint]:
+) -> tuple[SynthesizerTrnMs768NSFsid | SynthesizerTrnMs768BigVGANsid, RvcCheckpoint]:
     return get_synthesizer(
         cast(
             RvcCheckpoint,

@@ -27,8 +27,8 @@ else:
     raise ValueError("Expected positional arguments: exp_dir version")
 exp_dir = parsed_args.exp_dir
 version = parsed_args.version
-if version != "v2":
-    raise ValueError("Only v2 feature extraction is supported.")
+if version not in {"v2", "v3"}:
+    raise ValueError("Only v2 and v3 feature extraction is supported.")
 import fairseq
 import numpy as np
 import soundfile as sf

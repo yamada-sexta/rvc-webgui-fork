@@ -3,6 +3,7 @@ import torch
 
 def get_synthesizer(pth_path, device=torch.device("cpu")):
     from infer.lib.infer_pack.models import (
+        SynthesizerTrnMs768BigVGANsid,
         SynthesizerTrnMs768NSFsid,
     )
 
@@ -10,9 +11,10 @@ def get_synthesizer(pth_path, device=torch.device("cpu")):
     # tgt_sr = cpt["config"][-1]
     cpt["config"][-3] = cpt["weight"]["emb_g.weight"].shape[0]
     version = cpt.get("version", "v2")
-    if version != "v2" or cpt.get("f0", 1) != 1:
-        raise ValueError("Only v2 models with f0 are supported.")
-    net_g = SynthesizerTrnMs768NSFsid(*cpt["config"], is_half=False)
+    if version not in {"v2", "v3"} or cpt.get("f0", 1) != 1:
+        raise ValueError("Only v2/v3 models with f0 are supported.")
+    model_cls = SynthesizerTrnMs768BigVGANsid if version == "v3" else SynthesizerTrnMs768NSFsid
+    net_g = model_cls(*cpt["config"], is_half=False)
     del net_g.enc_q
     # net_g.forward = net_g.infer
     # ckpt = {}

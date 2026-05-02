@@ -31,11 +31,12 @@ from infer.lib.train.data_utils import (
     TextAudioLoaderMultiNSFsid,
 )
 
-if hps.version != "v2" or int(hps.if_f0) != 1:
-    raise ValueError("Training only supports v2 models with f0 enabled.")
+if hps.version not in {"v2", "v3"} or int(hps.if_f0) != 1:
+    raise ValueError("Training only supports v2/v3 models with f0 enabled.")
 
 from infer.lib.infer_pack.models import (
     MultiPeriodDiscriminatorV2 as MultiPeriodDiscriminator,
+    SynthesizerTrnMs768BigVGANsid,
     SynthesizerTrnMs768NSFsid as RVC_Model_f0,
 )
 
@@ -49,6 +50,31 @@ from infer.lib.train.mel_processing import mel_spectrogram_torch, spec_to_mel_to
 from infer.lib.train.process_ckpt import savee
 
 global_step = 0
+
+
+def build_generator(hps, use_fp16: bool):
+    model_cls = SynthesizerTrnMs768BigVGANsid if hps.version == "v3" else RVC_Model_f0
+    return model_cls(
+        hps.data.filter_length // 2 + 1,
+        hps.train.segment_size // hps.data.hop_length,
+        hps.model.inter_channels,
+        hps.model.hidden_channels,
+        hps.model.filter_channels,
+        hps.model.n_heads,
+        hps.model.n_layers,
+        hps.model.kernel_size,
+        hps.model.p_dropout,
+        hps.model.resblock,
+        hps.model.resblock_kernel_sizes,
+        hps.model.resblock_dilation_sizes,
+        hps.model.upsample_rates,
+        hps.model.upsample_initial_channel,
+        hps.model.upsample_kernel_sizes,
+        hps.model.spk_embed_dim,
+        hps.model.gin_channels,
+        is_half=use_fp16,
+        sr=hps.sample_rate,
+    )
 
 
 class EpochRecorder:
@@ -113,27 +139,7 @@ def run(hps, training_logger):
         persistent_workers=True,
         prefetch_factor=8,
     )
-    net_g = RVC_Model_f0(
-        hps.data.filter_length // 2 + 1,
-        hps.train.segment_size // hps.data.hop_length,
-        hps.model.inter_channels,
-        hps.model.hidden_channels,
-        hps.model.filter_channels,
-        hps.model.n_heads,
-        hps.model.n_layers,
-        hps.model.kernel_size,
-        hps.model.p_dropout,
-        hps.model.resblock,
-        hps.model.resblock_kernel_sizes,
-        hps.model.resblock_dilation_sizes,
-        hps.model.upsample_rates,
-        hps.model.upsample_initial_channel,
-        hps.model.upsample_kernel_sizes,
-        hps.model.spk_embed_dim,
-        hps.model.gin_channels,
-        is_half=use_fp16,
-        sr=hps.sample_rate,
-    )
+    net_g = build_generator(hps, use_fp16)
     net_d = MultiPeriodDiscriminator(hps.model.use_spectral_norm)
     optim_g = torch.optim.AdamW(
         net_g.parameters(),

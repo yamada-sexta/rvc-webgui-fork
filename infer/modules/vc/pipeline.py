@@ -5,7 +5,10 @@ from pathlib import Path
 from typing import Protocol, TypeAlias
 
 from configs.config import Config
-from infer.lib.infer_pack.models import SynthesizerTrnMs768NSFsid
+from infer.lib.infer_pack.models import (
+    SynthesizerTrnMs768BigVGANsid,
+    SynthesizerTrnMs768NSFsid,
+)
 
 import gradio as gr
 from loguru import logger
@@ -34,7 +37,7 @@ class NamedFile(Protocol):
     name: str
 
 
-RVCModel: TypeAlias = SynthesizerTrnMs768NSFsid
+RVCModel: TypeAlias = SynthesizerTrnMs768NSFsid | SynthesizerTrnMs768BigVGANsid
 
 
 def change_rms(
@@ -127,8 +130,8 @@ class Pipeline:
         version: str,
         protect: float,
     ) -> np.ndarray:  # ,file_index,file_big_npy
-        if version != "v2":
-            raise ValueError("Only v2 models with f0 are supported.")
+        if version not in {"v2", "v3"}:
+            raise ValueError("Only v2/v3 models with f0 are supported.")
         feats = torch.from_numpy(audio)
         if self.is_half:
             try:

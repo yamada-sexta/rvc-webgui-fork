@@ -106,6 +106,7 @@ lookup_indices(outside_index_root)
 
 sr_dict = {
     "32k": 32000,
+    "44k": 44100,
     "40k": 40000,
     "48k": 48000,
 }

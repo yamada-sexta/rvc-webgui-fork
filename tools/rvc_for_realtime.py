@@ -117,8 +117,8 @@ class RVC:
                 cpt["config"][-3] = cpt["weight"]["emb_g.weight"].shape[0]
                 self.if_f0 = cpt.get("f0", 1)
                 self.version = cpt.get("version", "v2")
-                if self.version != "v2" or self.if_f0 != 1:
-                    raise ValueError("Only v2 models with f0 are supported.")
+                if self.version not in {"v2", "v3"} or self.if_f0 != 1:
+                    raise ValueError("Only v2/v3 models with f0 are supported.")
                 if self.is_half:
                     self.net_g = self.net_g.half()
                 else:
@@ -153,8 +153,8 @@ class RVC:
                 self.tgt_sr = cpt["config"][-1]
                 self.if_f0 = cpt.get("f0", 1)
                 self.version = cpt.get("version", "v2")
-                if self.version != "v2" or self.if_f0 != 1:
-                    raise ValueError("Only v2 models with f0 are supported.")
+                if self.version not in {"v2", "v3"} or self.if_f0 != 1:
+                    raise ValueError("Only v2/v3 models with f0 are supported.")
                 self.net_g = torch.jit.load(
                     BytesIO(cpt["model"]), map_location=self.device
                 )

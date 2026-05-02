@@ -17,6 +17,7 @@ from lib.types import (
 import numpy as np
 import torch
 from infer.lib.infer_pack.models import (
+    SynthesizerTrnMs768BigVGANsid,
     SynthesizerTrnMs768NSFsid,
 )
 from infer.modules.vc.pipeline import Pipeline
@@ -58,7 +59,7 @@ class VC:
         self.n_spk: int | None = None
         self.tgt_sr: int | None = None
         self.net_g: (
-            SynthesizerTrnMs768NSFsid | None
+            SynthesizerTrnMs768NSFsid | SynthesizerTrnMs768BigVGANsid | None
         ) = None
         self.pipeline: Pipeline | None = None
         self.cpt: RvcCheckpoint | None = None
@@ -74,6 +75,16 @@ class VC:
         )
         self.cache_pitchf: torch.Tensor = torch.zeros(1, 256, dtype=torch.float32).to(
             get_device()
+        )
+
+    def _build_synthesizer(self, cpt: RvcCheckpoint):
+        version = cpt.get("version", "v2")
+        model_cls = (
+            SynthesizerTrnMs768BigVGANsid if version == "v3" else SynthesizerTrnMs768NSFsid
+        )
+        return model_cls(
+            *synthesizer_config_args_with_sr(cpt["config"]),
+            is_half=use_half_precision(),
         )
 
     def get_vc(self: "VC", sid: str | None, *to_return_protect):
@@ -104,11 +115,8 @@ class VC:
                 cpt = self.cpt
                 if cpt is not None:
                     self.version = cpt.get("version", "v2")
-                    if self.version == "v2" and cpt.get("f0", 1) == 1:
-                        self.net_g = SynthesizerTrnMs768NSFsid(
-                            *synthesizer_config_args_with_sr(cpt["config"]),
-                            is_half=use_half_precision(),
-                        )
+                    if self.version in {"v2", "v3"} and cpt.get("f0", 1) == 1:
+                        self.net_g = self._build_synthesizer(cpt)
                 self.net_g = None
                 self.cpt = None
                 empty_cache()
@@ -130,13 +138,10 @@ class VC:
         self.tgt_sr = synthesizer_target_sr(self.cpt["config"])
         self.cpt["config"][-3] = self.cpt["weight"]["emb_g.weight"].shape[0]  # n_spk
         self.version = self.cpt.get("version", "v2")
-        if self.version != "v2" or self.cpt.get("f0", 1) != 1:
-            raise ValueError("Only v2 models with f0 are supported.")
+        if self.version not in {"v2", "v3"} or self.cpt.get("f0", 1) != 1:
+            raise ValueError("Only v2/v3 models with f0 are supported.")
 
-        self.net_g = SynthesizerTrnMs768NSFsid(
-            *synthesizer_config_args_with_sr(self.cpt["config"]),
-            is_half=use_half_precision(),
-        )
+        self.net_g = self._build_synthesizer(self.cpt)
 
         del self.net_g.enc_q
 

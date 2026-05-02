@@ -17,9 +17,11 @@ import gradio as gr
 import numpy as np
 from loguru import logger
 from pydantic import ValidationError
+from scipy.io.wavfile import write as write_wav
 from sklearn.cluster import MiniBatchKMeans
 
 import shared
+from configs.v3_config import get_v3_training_config
 from lib.json_validation import JsonLogPayload, LogEventName, ModelVersion, SampleRateName
 from shared import i18n
 
@@ -27,7 +29,6 @@ ProgressComponent = gr.Progress
 
 SampleRate = SampleRateName
 PitchExtractionMethod = Literal["pm", "harvest", "dio", "rmvpe", "rmvpe_gpu"]
-MODEL_VERSION: ModelVersion = "v2"
 
 
 def read_json_log_records(log_path: pathlib.Path) -> list[JsonLogPayload]:
@@ -186,6 +187,7 @@ def extract_f0_feature(
     f0method: PitchExtractionMethod,
     n_p: int,
     exp_dir: str,
+    version: ModelVersion = "v2",
     progress: gr.Progress = gr.Progress(),
 ) -> Generator[str, None, None]:
     log_dir = pathlib.Path(shared.now_dir) / "logs" / exp_dir
@@ -222,7 +224,7 @@ def extract_f0_feature(
         shared.config.python_cmd,
         "infer/modules/train/extract_feature_print.py",
         str(log_dir),
-        MODEL_VERSION,
+        version,
     ]
     logger.info(f"Execute: {shlex.join(cmd)}")
     p = subprocess.Popen(cmd, cwd=shared.now_dir)
@@ -275,9 +277,74 @@ def change_sr2(sr2: SampleRate) -> tuple[str, str]:
     return get_pretrained_models("_v2", "f0", sr2)
 
 
+def change_version_and_sr(
+    version: ModelVersion, sr2: SampleRate
+) -> tuple[dict[str, object], str, str]:
+    if version == "v3":
+        return (
+            {"choices": ["44k"], "value": "44k", "__type__": "update"},
+            "",
+            "",
+        )
+    pretrained_g, pretrained_d = change_sr2(sr2 if sr2 != "44k" else "48k")
+    return (
+        {"choices": ["32k", "48k"], "value": "48k" if sr2 == "44k" else sr2, "__type__": "update"},
+        pretrained_g,
+        pretrained_d,
+    )
+
+
+def change_pretrained_inputs(
+    version: ModelVersion, sr2: SampleRate
+) -> tuple[str, str]:
+    if version == "v3":
+        return "", ""
+    return change_sr2(sr2)
+
+
+def ensure_mute_assets(version: ModelVersion, sr2: SampleRate) -> None:
+    mute_root = pathlib.Path(shared.now_dir) / "logs" / "mute"
+    gt_dir = mute_root / "0_gt_wavs"
+    feature_dir = mute_root / "3_feature768"
+    f0_dir = mute_root / "2a_f0"
+    f0nsf_dir = mute_root / "2b-f0nsf"
+    for path in (gt_dir, feature_dir, f0_dir, f0nsf_dir):
+        path.mkdir(parents=True, exist_ok=True)
+
+    if version == "v3":
+        config = get_v3_training_config()
+        sample_rate = config.data.sampling_rate
+        hop_length = config.data.hop_length
+    else:
+        sample_rate = shared.sr_dict[sr2]
+        config_key = f"v2/{sr2}.json"
+        config = shared.config.json_config[config_key]
+        hop_length = config.data.hop_length
+
+    frames = 100
+    wav_path = gt_dir / f"mute{sr2}.wav"
+    phone_path = feature_dir / "mute.npy"
+    pitch_path = f0_dir / "mute.wav.npy"
+    pitchf_path = f0nsf_dir / "mute.wav.npy"
+
+    if not wav_path.exists():
+        silence = np.zeros(frames * hop_length, dtype=np.int16)
+        write_wav(wav_path, sample_rate, silence)
+    if not phone_path.exists():
+        phone = np.zeros((frames // 2, 768), dtype=np.float32)
+        np.save(phone_path, phone)
+    if not pitch_path.exists():
+        pitch = np.zeros(frames, dtype=np.int64)
+        np.save(pitch_path, pitch)
+    if not pitchf_path.exists():
+        pitchf = np.zeros(frames, dtype=np.float32)
+        np.save(pitchf_path, pitchf)
+
+
 def click_train(
     exp_dir1: str,
     sr2: SampleRate,
+    version19: ModelVersion,
     spk_id5: int,
     save_epoch10: int,
     total_epoch11: int,
@@ -288,6 +355,13 @@ def click_train(
     if_save_every_weights18: str,
     progress: gr.Progress = gr.Progress(),
 ) -> Generator[str, None, None]:
+    if version19 == "v3" and sr2 != "44k":
+        yield "v3 currently supports only 44k."
+        return
+    if version19 == "v2" and sr2 == "44k":
+        yield "44k is currently reserved for v3."
+        return
+    ensure_mute_assets(version19, sr2)
     # Generating file list
     exp_dir = pathlib.Path(shared.now_dir) / "logs" / exp_dir1
     exp_dir.mkdir(parents=True, exist_ok=True)
@@ -356,9 +430,9 @@ def click_train(
         logger.info("No pretrained Generator")
     if pretrained_D15 == "":
         logger.info("No pretrained Discriminator")
-    config_path = "v2/%s.json" % sr2
     config_save_path = exp_dir / "config.json"
-    if not config_save_path.exists():
+    if version19 == "v2" and not config_save_path.exists():
+        config_path = f"{version19}/{sr2}.json"
         with open(config_save_path, "w", encoding="utf-8") as f:
             json.dump(
                 shared.config.json_config[config_path].model_dump(mode="json"),
@@ -388,7 +462,7 @@ def click_train(
         "-sw",
         str(1 if if_save_every_weights18 == i18n("Yes") else 0),
         "-v",
-        MODEL_VERSION,
+        version19,
     ]
     if pretrained_G14 != "":
         cmd.extend(["-pg", pretrained_G14])
@@ -420,7 +494,9 @@ def click_train(
 
 
 def train_index(
-    exp_dir1: str, progress: gr.Progress = gr.Progress()
+    exp_dir1: str,
+    version: ModelVersion = "v2",
+    progress: gr.Progress = gr.Progress(),
 ) -> Generator[str, None, None]:
     exp_dir = "logs/%s" % (exp_dir1)
     os.makedirs(exp_dir, exist_ok=True)
@@ -481,7 +557,7 @@ def train_index(
     faiss.write_index(
         index,
         "%s/trained_IVF%s_Flat_nprobe_%s_%s_%s.index"
-        % (exp_dir, n_ivf, index_ivf.nprobe, exp_dir1, MODEL_VERSION),
+        % (exp_dir, n_ivf, index_ivf.nprobe, exp_dir1, version),
     )
     progress(0.7, desc="Adding vectors to index...")
     infos.append("Adding vectors to index...")
@@ -492,17 +568,17 @@ def train_index(
     faiss.write_index(
         index,
         "%s/added_IVF%s_Flat_nprobe_%s_%s_%s.index"
-        % (exp_dir, n_ivf, index_ivf.nprobe, exp_dir1, MODEL_VERSION),
+        % (exp_dir, n_ivf, index_ivf.nprobe, exp_dir1, version),
     )
     infos.append(
         "Successfully built index: added_IVF%s_Flat_nprobe_%s_%s_%s.index"  # Original: "Successfully built index added_IVF%s_Flat_nprobe_%s_%s_%s.index"
-        % (n_ivf, index_ivf.nprobe, exp_dir1, MODEL_VERSION)
+        % (n_ivf, index_ivf.nprobe, exp_dir1, version)
     )
     try:
         link = os.link if platform.system() == "Windows" else os.symlink
         link(
             "%s/added_IVF%s_Flat_nprobe_%s_%s_%s.index"
-            % (exp_dir, n_ivf, index_ivf.nprobe, exp_dir1, MODEL_VERSION),
+            % (exp_dir, n_ivf, index_ivf.nprobe, exp_dir1, version),
             "%s/%s_IVF%s_Flat_nprobe_%s_%s_%s.index"
             % (
                 shared.outside_index_root,
@@ -510,7 +586,7 @@ def train_index(
                 n_ivf,
                 index_ivf.nprobe,
                 exp_dir1,
-                MODEL_VERSION,
+                version,
             ),
         )
         infos.append(
@@ -528,6 +604,7 @@ def train_index(
 def one_click_training(
     exp_dir1: str,
     sr2: SampleRate,
+    version19: ModelVersion,
     trainset_dir4: str,
     spk_id5: int,
     np7: int,
@@ -555,6 +632,7 @@ def one_click_training(
         f0method8,
         np7,
         exp_dir1,
+        version19,
     ):
         if not is_skip_update(update):
             final_sections.append(str(update))
@@ -564,6 +642,7 @@ def one_click_training(
     for update in click_train(
         exp_dir1,
         sr2,
+        version19,
         spk_id5,
         save_epoch10,
         total_epoch11,
@@ -581,7 +660,7 @@ def one_click_training(
 
     # step3b: Train index
     progress(0.0, desc=i18n("Training index..."))
-    for update in train_index(exp_dir1):
+    for update in train_index(exp_dir1, version19):
         final_sections.append(update)
     final_sections.append(i18n("Full process completed!"))
     yield "\n\n".join(section for section in final_sections if section).strip()
@@ -602,6 +681,12 @@ def create_train_tab() -> None:
                     label=i18n("Target Sample Rate"),
                     choices=["32k", "48k"],
                     value="48k",
+                    interactive=True,
+                )
+                model_version = gr.Radio(
+                    label=i18n("Model Version"),
+                    choices=["v2", "v3"],
+                    value="v2",
                     interactive=True,
                 )
                 cpu_count = gr.Slider(
@@ -669,6 +754,7 @@ def create_train_tab() -> None:
                             f0method8,
                             cpu_count,
                             experiment_name,
+                            model_version,
                         ],
                         [info2],
                         api_name="train_extract_f0_feature",
@@ -724,9 +810,14 @@ def create_train_tab() -> None:
                     interactive=True,
                 )
                 target_sr.change(
-                    change_sr2,
-                    [target_sr],
+                    change_pretrained_inputs,
+                    [model_version, target_sr],
                     [pretrained_G14, pretrained_D15],
+                )
+                model_version.change(
+                    change_version_and_sr,
+                    [model_version, target_sr],
+                    [target_sr, pretrained_G14, pretrained_D15],
                 )
                 train_btn = gr.Button(i18n("Train"), variant="primary")
                 index_btn = gr.Button(i18n("Extra Feature Index"), variant="primary")
@@ -738,6 +829,7 @@ def create_train_tab() -> None:
                     [
                         experiment_name,
                         target_sr,
+                        model_version,
                         spk_id,
                         save_epoch,
                         total_epoch,
@@ -750,12 +842,13 @@ def create_train_tab() -> None:
                     training_info,
                     api_name="train_start",
                 )
-                index_btn.click(train_index, [experiment_name], training_info)
+                index_btn.click(train_index, [experiment_name, model_version], training_info)
                 one_click_btn.click(
                     one_click_training,
                     [
                         experiment_name,
                         target_sr,
+                        model_version,
                         audio_data_root,
                         spk_id,
                         cpu_count,

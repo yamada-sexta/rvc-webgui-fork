@@ -5,7 +5,7 @@ import shutil
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Literal, Protocol, cast
 
 import numpy as np
 import torch
@@ -15,6 +15,7 @@ from scipy.io.wavfile import read
 from tap import Tap
 from loguru import logger
 
+from configs.v3_config import get_v3_training_config
 from lib.json_validation import ModelVersion, SampleRateName, TrainingConfig
 
 # MATPLOTLIB_FLAG = False
@@ -33,7 +34,7 @@ class TrainArgs(Tap):
     batch_size: int
     # Experiment directory name under logs.
     experiment_dir: str
-    # Sample rate, such as 32k, 40k, or 48k.
+    # Sample rate, such as 32k, 44k, or 48k.
     sample_rate: SampleRateName
     # Save extracted model weights when saving checkpoints.
     save_every_weights: Literal["0", "1"] = "0"
@@ -326,8 +327,11 @@ def get_hparams(init=True):
     name = args.experiment_dir
     experiment_dir = Path("./logs") / args.experiment_dir
 
-    config_save_path = experiment_dir / "config.json"
-    config = HParamsConfig.model_validate_json(config_save_path.read_text())
+    if args.version == "v3":
+        config = HParamsConfig.model_validate(get_v3_training_config().model_dump())
+    else:
+        config_save_path = experiment_dir / "config.json"
+        config = HParamsConfig.model_validate_json(config_save_path.read_text())
     runtime = HParamsRuntimeOverrides(
         model_dir=experiment_dir,
         experiment_dir=experiment_dir,
@@ -556,9 +560,11 @@ class HParams:
         )
         if runtime.training_files is not None:
             data = replace(data, training_files=runtime.training_files)
-        sample_rate = runtime.sample_rate or (
-            "48k" if config.data.sampling_rate == 48000 else "32k"
-        )
+        sample_rate = runtime.sample_rate or {
+            32000: "32k",
+            44100: "44k",
+            48000: "48k",
+        }.get(config.data.sampling_rate, "48k")
         return cls(
             train=train,
             data=data,
@@ -590,7 +596,7 @@ class HParams:
             pretrainG=runtime.pretrainG,
             pretrainD=runtime.pretrainD,
             version=runtime.version,
-            sample_rate=sample_rate,
+            sample_rate=cast(SampleRateName, sample_rate),
             if_f0=runtime.if_f0,
             if_latest=runtime.if_latest,
             save_every_weights=runtime.save_every_weights,
