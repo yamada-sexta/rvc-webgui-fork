@@ -123,6 +123,8 @@ def run(hps, training_logger):
         persistent_workers=num_workers > 0,
         prefetch_factor=prefetch_factor if num_workers > 0 else None,
     )
+
+    if hps.version == "v3":
         dac_codec = FrozenDacCodec(hps.data.sampling_rate, hps.model.dac_model_type)
         net_g = TransformerDacGenerator(
             768,
@@ -355,6 +357,9 @@ def train_and_evaluate(
         m_p: torch.Tensor | None = None
         logs_p: torch.Tensor | None = None
         z_mask: torch.Tensor | None = None
+        y_hat: torch.Tensor | None = None
+        padding_mask: torch.Tensor | None = None
+        loss_disc: torch.Tensor | None = None
 
         # Calculate
         with accelerator.autocast():
@@ -435,16 +440,18 @@ def train_and_evaluate(
                 if use_half_precision():
                     y_hat_mel = y_hat_mel.half()
 
-            if net_d is not None:
+            if net_d is not None and hps.version != "v3":
                 # Discriminator
+                assert y_hat is not None
                 y_d_hat_r, y_d_hat_g, _, _ = net_d(wave, y_hat.detach())
                 with nullcontext():
                     loss_disc, losses_disc_r, losses_disc_g = discriminator_loss(
                         y_d_hat_r, y_d_hat_g
                     )
         
-        if net_d is not None:
+        if net_d is not None and hps.version != "v3":
             optim_d.zero_grad()
+            assert loss_disc is not None
             accelerator.backward(loss_disc)
             grad_norm_d = commons.clip_grad_value_(net_d.parameters(), None)
             optim_d.step()
@@ -506,9 +513,10 @@ def train_and_evaluate(
         grad_norm_g = commons.clip_grad_value_(net_g.parameters(), None)
         optim_g.step()
 
-        if scheduler_d is not None:
+        if schedulers[1] is not None:
             schedulers[1].step()
-        schedulers[0].step()
+        if schedulers[0] is not None:
+            schedulers[0].step()
 
         if global_step % hps.train.log_interval == 0:
             lr = float(optim_g.param_groups[0]["lr"])
