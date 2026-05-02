@@ -24,6 +24,7 @@ dependencies = [
     "setuptools<81",
     "pyworld>=0.3.5",
     "resampy>=0.4.2",
+    "safetensors>=0.7.0",
     "scikit-learn>=1.6.1",
     "scipy>=1.15.3",
     "sounddevice>=0.5.2",

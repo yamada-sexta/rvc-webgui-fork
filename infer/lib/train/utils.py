@@ -286,7 +286,9 @@ def load_wav_to_torch(full_path: Path):
     return torch.FloatTensor(data.astype(np.float32)), sampling_rate
 
 
-def load_filepaths_and_text(filename: Path, split: str = "|") -> list[tuple[Path, Path, Path, Path, str]]:
+def load_filepaths_and_text(
+    filename: Path, split: str = "|"
+) -> list[tuple[Path, Path, Path, Path, Path | None, str]]:
     try:
         with open(filename, encoding="utf-8") as f:
             lines = f.readlines()
@@ -294,15 +296,22 @@ def load_filepaths_and_text(filename: Path, split: str = "|") -> list[tuple[Path
         with open(filename) as f:
             lines = f.readlines()
 
-    res: list[tuple[Path, Path, Path, Path, str]] = []
+    res: list[tuple[Path, Path, Path, Path, Path | None, str]] = []
     for line in lines:
         parts = line.strip().split(split)
-        if len(parts) != 5:
+        if len(parts) == 5:
+            audiopath, phone, pitch, pitchf, dv = parts
+            dac = None
+        elif len(parts) == 6:
+            audiopath, phone, pitch, pitchf, dac_path, dv = parts
+            dac = Path(dac_path)
+        else:
             raise ValueError(
-                f"Expected 5 pipe-separated fields (audiopath|phone|pitch|pitchf|dv) "
+                f"Expected 5 or 6 pipe-separated fields "
+                f"(audiopath|phone|pitch|pitchf|[dac]|dv) "
                 f"in {filename}, got {len(parts)}: {line.strip()!r}"
             )
-        res.append((Path(parts[0]), Path(parts[1]), Path(parts[2]), Path(parts[3]), parts[4]))
+        res.append((Path(audiopath), Path(phone), Path(pitch), Path(pitchf), dac, dv))
 
     return res
 

@@ -292,6 +292,8 @@ def train_and_evaluate(
             spec_lengths,
             wave,
             wave_lengths,
+            dac_targets,
+            dac_lengths,
             sid,
         ) = info
         dac_latents: torch.Tensor | None = None
@@ -307,11 +309,12 @@ def train_and_evaluate(
         # Calculate
         with accelerator.autocast():
             if hps.version == "v3":
+                if dac_targets is None or dac_lengths is None:
+                    raise ValueError("V3 training requires precomputed DAC safetensors.")
                 codec = net_g.module.codec if hasattr(net_g, "module") else net_g.codec
-                wave_codec = codec._resample_for_codec(wave.float())
-                with torch.no_grad():
-                    target_latents_full = codec.encode(wave_codec)
-                target_frames = target_latents_full.shape[-1]
+                target_latents_full = dac_targets
+                target_frames = int(dac_lengths.min().item())
+                wave = codec._resample_for_codec(wave.float())
                 segment_size = round(
                     hps.train.segment_size * codec.codec_sample_rate / hps.data.sampling_rate
                 )

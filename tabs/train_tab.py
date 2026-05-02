@@ -15,6 +15,8 @@ from typing import Literal
 import faiss
 import gradio as gr
 import numpy as np
+import torch
+from safetensors.torch import load_file as load_safetensors
 from loguru import logger
 from pydantic import ValidationError
 from sklearn.cluster import MiniBatchKMeans
@@ -186,6 +188,7 @@ def extract_f0_feature(
     f0method: PitchExtractionMethod,
     n_p: int,
     exp_dir: str,
+    sr2: SampleRate,
     model_version: ModelVersion = MODEL_VERSION,
     progress: gr.Progress = gr.Progress(),
 ) -> Generator[str, None, None]:
@@ -239,6 +242,32 @@ def extract_f0_feature(
     if p.wait() != 0:
         yield "Feature extraction failed.\n" + log if log else "Feature extraction failed."
         return
+    if model_version == "v3":
+        dac_cmd = [
+            shared.config.python_cmd,
+            "infer/modules/train/extract_dac_print.py",
+            str(log_dir),
+            str(shared.sr_dict[sr2]),
+        ]
+        config_path = log_dir / "config.json"
+        if config_path.exists():
+            config_data = json.loads(config_path.read_text(encoding="utf-8"))
+            dac_cmd[3] = str(config_data["data"]["sampling_rate"])
+            dac_cmd.extend(["--model_id", str(config_data["model"]["dac_model_type"])])
+        logger.info(f"Execute: {shlex.join(dac_cmd)}")
+        p = subprocess.Popen(dac_cmd, cwd=shared.now_dir)
+        while True:
+            records = read_json_log_records(log_path)
+            fraction, description = get_latest_ui_progress(records)
+            progress(fraction, desc=description)
+            sleep(0.2)
+            if p.poll() is not None:
+                break
+        if p.wait() != 0:
+            records = read_json_log_records(log_path)
+            log = format_log_messages(records)
+            yield "DAC extraction failed.\n" + log if log else "DAC extraction failed."
+            return
     logger.info(f"Feature extraction stage completed for {exp_dir}")
     yield log
 
@@ -281,9 +310,14 @@ def click_train(
     feature_dir = exp_dir / "3_feature768"
     f0_dir = exp_dir / "2a_f0"
     f0nsf_dir = exp_dir / "2b-f0nsf"
+    dac_dir = exp_dir / "4_dac"
     missing_dirs = [
         str(path)
-        for path in (gt_wavs_dir, feature_dir, f0_dir, f0nsf_dir)
+        for path in (
+            (gt_wavs_dir, feature_dir, f0_dir, f0nsf_dir, dac_dir)
+            if model_version == "v3"
+            else (gt_wavs_dir, feature_dir, f0_dir, f0nsf_dir)
+        )
         if not path.exists()
     ]
     if missing_dirs:
@@ -299,6 +333,8 @@ def click_train(
         & {path.name.split(".")[0] for path in f0_dir.iterdir()}
         & {path.name.split(".")[0] for path in f0nsf_dir.iterdir()}
     )
+    if model_version == "v3":
+        names &= {path.stem for path in dac_dir.iterdir()}
     if not names:
         yield (
             "Training data is incomplete. No matching items were found across "
@@ -308,18 +344,14 @@ def click_train(
     opt = []
     for name in names:
         wav_path = gt_wavs_dir / f"{name}.wav"
-        feature_path = feature_dir / f"{name}.npy"
-        f0_path = f0_dir / f"{name}.wav.npy"
-        f0nsf_path = f0nsf_dir / f"{name}.wav.npy"
-        opt.append(f"{wav_path}|{feature_path}|{f0_path}|{f0nsf_path}|{spk_id5}")
-    for _ in range(2):
-        mute_dir = pathlib.Path(shared.now_dir) / "logs" / "mute"
-        opt.append(
-            f"{mute_dir / '0_gt_wavs' / f'mute{sr2}.wav'}|"
-            f"{mute_dir / '3_feature768' / 'mute.npy'}|"
-            f"{mute_dir / '2a_f0' / 'mute.wav.npy'}|"
-            f"{mute_dir / '2b-f0nsf' / 'mute.wav.npy'}|{spk_id5}"
-        )
+        feature_path = feature_dir / f"{name}.safetensors"
+        f0_path = f0_dir / f"{name}.wav.safetensors"
+        f0nsf_path = f0nsf_dir / f"{name}.wav.safetensors"
+        if model_version == "v3":
+            dac_path = dac_dir / f"{name}.safetensors"
+            opt.append(f"{wav_path}|{feature_path}|{f0_path}|{f0nsf_path}|{dac_path}|{spk_id5}")
+        else:
+            opt.append(f"{wav_path}|{feature_path}|{f0_path}|{f0nsf_path}|{spk_id5}")
     shuffle(opt)
     (exp_dir / "filelist.txt").write_text("\n".join(opt), encoding="utf-8")
     logger.debug("Write filelist done")
@@ -412,7 +444,7 @@ def train_index(
     infos = []
     npys = []
     for path in feature_paths:
-        phone = np.load(path)
+        phone = load_safetensors(path)["features"].numpy()
         npys.append(phone)
     big_npy = np.concatenate(npys, 0)
     big_npy_idx = np.arange(big_npy.shape[0])
@@ -442,7 +474,9 @@ def train_index(
             infos.append(info)
             yield "\n".join(infos)
 
-    np.save(exp_dir / "total_fea.npy", big_npy)
+    from safetensors.torch import save_file
+
+    save_file({"features": torch.from_numpy(big_npy).float()}, exp_dir / "total_fea.safetensors")
     n_ivf = min(int(16 * np.sqrt(big_npy.shape[0])), big_npy.shape[0] // 39)
     infos.append(f"{big_npy.shape},{n_ivf}")
     # yield "\n".join(infos)
@@ -508,6 +542,7 @@ def one_click_training(
         f0method8,
         np7,
         exp_dir1,
+        sr2,
         model_version,
     ):
         if not is_skip_update(update):
@@ -630,6 +665,7 @@ def create_train_tab() -> None:
                             f0method8,
                             cpu_count,
                             experiment_name,
+                            target_sr,
                             model_version,
                         ],
                         [info2],

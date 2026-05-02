@@ -10,6 +10,8 @@ now_dir = os.getcwd()
 sys.path.append(now_dir)
 
 import numpy as np
+import torch
+from safetensors.torch import save_file
 
 from infer.lib.audio import load_audio
 from lib.f0 import Generator, PitchMethod
@@ -102,10 +104,9 @@ class FeatureInput:
                         message=f"Processing pitch {idx + 1}/{len(paths)}: {Path(inp_path).name}",
                         file=inp_path,
                     ).info(f"Starting f0 for {Path(inp_path).name}")
-                    skipped = (
-                        os.path.exists(opt_path1 + ".npy")
-                        and os.path.exists(opt_path2 + ".npy")
-                    )
+                    skipped = Path(f"{opt_path1}.safetensors").exists() and Path(
+                        f"{opt_path2}.safetensors"
+                    ).exists()
                     if not skipped:
                         audio = load_audio(inp_path, self.fs)
                         p_len = audio.shape[0] // self.hop
@@ -116,15 +117,13 @@ class FeatureInput:
                             f0_method,
                             3,
                         )
-                        np.save(
-                            opt_path2,
-                            featur_pit,
-                            allow_pickle=False,
+                        save_file(
+                            {"pitchf": torch.from_numpy(featur_pit).float()},
+                            f"{opt_path2}.safetensors",
                         )
-                        np.save(
-                            opt_path1,
-                            coarse_pit,
-                            allow_pickle=False,
+                        save_file(
+                            {"pitch": torch.from_numpy(coarse_pit).long()},
+                            f"{opt_path1}.safetensors",
                         )
                     logger.bind(
                         event="ui_progress",

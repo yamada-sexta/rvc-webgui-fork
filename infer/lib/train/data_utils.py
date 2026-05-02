@@ -4,10 +4,10 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-import numpy as np
 import torch
 import torch.utils.data
 from typing import Iterator
+from safetensors.torch import load_file as load_safetensors
 
 from infer.lib.train.mel_processing import spectrogram_torch
 from infer.lib.train.utils import load_filepaths_and_text, load_wav_to_torch
@@ -21,7 +21,7 @@ class TextAudioLoaderMultiNSFsid(torch.utils.data.Dataset):
     """
 
     def __init__(self, audiopaths_and_text: Path, hparams: object) -> None:
-        self.audiopaths_and_text: list[tuple[Path, Path, Path, Path, str]] = (
+        self.audiopaths_and_text: list[tuple[Path, Path, Path, Path, Path | None, str]] = (
             load_filepaths_and_text(audiopaths_and_text)
         )
         self.max_wav_value = hparams.max_wav_value  # type: ignore[attr-defined]
@@ -41,14 +41,14 @@ class TextAudioLoaderMultiNSFsid(torch.utils.data.Dataset):
         # Store spectrogram lengths for Bucketing
         # wav_length ~= file_size / (wav_channels * Bytes per dim) = file_size / (1 * 2)
         # spec_length = wav_length // hop_length
-        audiopaths_and_text_new: list[tuple[Path, Path, Path, Path, str]] = []
+        audiopaths_and_text_new: list[tuple[Path, Path, Path, Path, Path | None, str]] = []
         lengths = []
-        for audiopath, text, pitch, pitchf, dv in self.audiopaths_and_text:
+        for audiopath, text, pitch, pitchf, dac, dv in self.audiopaths_and_text:
             phone_len = len(
                 text.name
             )  # text is a Path to the .npy phone file; use its name length as proxy
             if self.min_text_len <= phone_len and phone_len <= self.max_text_len:
-                audiopaths_and_text_new.append((audiopath, text, pitch, pitchf, dv))
+                audiopaths_and_text_new.append((audiopath, text, pitch, pitchf, dac, dv))
                 lengths.append(audiopath.stat().st_size // (3 * self.hop_length))
         self.audiopaths_and_text = audiopaths_and_text_new
         self.lengths = lengths
@@ -58,20 +58,22 @@ class TextAudioLoaderMultiNSFsid(torch.utils.data.Dataset):
         return sid_tensor
 
     def get_audio_text_pair(
-        self, audiopath_and_text: tuple[Path, Path, Path, Path, str]
+        self, audiopath_and_text: tuple[Path, Path, Path, Path, Path | None, str]
     ) -> tuple[
         torch.Tensor,
         torch.Tensor,
         torch.Tensor,
         torch.Tensor,
         torch.Tensor,
+        torch.Tensor | None,
         torch.Tensor,
     ]:
         # separate filename and text
-        file, phone, pitch, pitchf, dv = audiopath_and_text
+        file, phone, pitch, pitchf, dac_path, dv = audiopath_and_text
 
         phone, pitch, pitchf = self.get_labels(phone, pitch, pitchf)
         spec, wav = self.get_audio(file)
+        dac = self.get_dac_latents(dac_path) if dac_path is not None else None
         dv = self.get_sid(dv)
 
         len_phone = phone.size()[0]
@@ -89,23 +91,32 @@ class TextAudioLoaderMultiNSFsid(torch.utils.data.Dataset):
             pitch = pitch[:len_min]
             pitchf = pitchf[:len_min]
 
-        return (spec, wav, phone, pitch, pitchf, dv)
+        return (spec, wav, phone, pitch, pitchf, dac, dv)
+
+    def get_dac_latents(self, dac_path: Path) -> torch.Tensor:
+        if not dac_path.exists():
+            raise FileNotFoundError(dac_path)
+        latents = load_safetensors(dac_path)["latents"]
+        if latents.dim() != 2:
+            raise ValueError(f"Expected DAC latents [channels, frames], got {latents.shape}")
+        return latents.float()
+
+    def load_tensor(self, path: Path, key: str) -> torch.Tensor:
+        if path.suffix == ".safetensors":
+            return load_safetensors(path)[key]
+        raise ValueError(f"Training tensors must be safetensors: {path}")
 
     def get_labels(
         self, phone: Path, pitch: Path, pitchf: Path
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        phone_np = np.load(phone)
-        phone_np = np.repeat(phone_np, 2, axis=0)
-        pitch_np = np.load(pitch)
-        pitchf_np = np.load(pitchf)
-        n_num = min(phone_np.shape[0], 900)  # DistributedBucketSampler
-        # print(234,phone.shape,pitch.shape)
-        phone_np = phone_np[:n_num, :]
-        pitch_np = pitch_np[:n_num]
-        pitchf_np = pitchf_np[:n_num]
-        phone_t = torch.FloatTensor(phone_np)
-        pitch_t = torch.LongTensor(pitch_np)
-        pitchf_t = torch.FloatTensor(pitchf_np)
+        phone_t = self.load_tensor(phone, "features").float()
+        phone_t = torch.repeat_interleave(phone_t, 2, dim=0)
+        pitch_t = self.load_tensor(pitch, "pitch").long()
+        pitchf_t = self.load_tensor(pitchf, "pitchf").float()
+        n_num = min(phone_t.shape[0], 900)  # DistributedBucketSampler
+        phone_t = phone_t[:n_num, :]
+        pitch_t = pitch_t[:n_num]
+        pitchf_t = pitchf_t[:n_num]
         return phone_t, pitch_t, pitchf_t
 
     def get_audio(self, filename: Path) -> tuple[torch.Tensor, torch.Tensor]:
@@ -156,6 +167,7 @@ class TextAudioLoaderMultiNSFsid(torch.utils.data.Dataset):
         torch.Tensor,
         torch.Tensor,
         torch.Tensor,
+        torch.Tensor | None,
         torch.Tensor,
     ]:
         return self.get_audio_text_pair(self.audiopaths_and_text[index])
@@ -179,6 +191,7 @@ class TextAudioCollateMultiNSFsid:
                 torch.Tensor,
                 torch.Tensor,
                 torch.Tensor,
+                torch.Tensor | None,
                 torch.Tensor,
             ]
         ],
@@ -191,6 +204,8 @@ class TextAudioCollateMultiNSFsid:
         torch.Tensor,
         torch.Tensor,
         torch.Tensor,
+        torch.Tensor | None,
+        torch.Tensor | None,
         torch.Tensor,
     ]:
         """Collate's training batch from normalized text and aduio
@@ -224,6 +239,20 @@ class TextAudioCollateMultiNSFsid:
         pitchf_padded.zero_()
         # dv = torch.FloatTensor(len(batch), 256)#gin=256
         sid = torch.LongTensor(len(batch))
+        has_dac = batch[0][5] is not None
+        dac_padded: torch.Tensor | None = None
+        dac_lengths: torch.Tensor | None = None
+        if has_dac:
+            dac_items = [item[5] for item in batch]
+            if any(item is None for item in dac_items):
+                raise ValueError("Cannot mix samples with and without DAC latents.")
+            dac_tensors = [item for item in dac_items if item is not None]
+            max_dac_len = max([item.size(1) for item in dac_tensors])
+            dac_padded = torch.FloatTensor(
+                len(batch), dac_tensors[0].size(0), max_dac_len
+            )
+            dac_lengths = torch.LongTensor(len(batch))
+            dac_padded.zero_()
 
         for i in range(len(ids_sorted_decreasing)):
             row = batch[ids_sorted_decreasing[i]]
@@ -245,8 +274,15 @@ class TextAudioCollateMultiNSFsid:
             pitchf = row[4]
             pitchf_padded[i, : pitchf.size(0)] = pitchf
 
-            # dv[i] = row[5]
-            sid[i] = row[5]
+            dac = row[5]
+            if has_dac:
+                assert dac is not None
+                assert dac_padded is not None
+                assert dac_lengths is not None
+                dac_padded[i, :, : dac.size(1)] = dac
+                dac_lengths[i] = dac.size(1)
+
+            sid[i] = row[6]
 
         return (
             phone_padded,
@@ -257,6 +293,8 @@ class TextAudioCollateMultiNSFsid:
             spec_lengths,
             wave_padded,
             wave_lengths,
+            dac_padded,
+            dac_lengths,
             # dv
             sid,
         )
