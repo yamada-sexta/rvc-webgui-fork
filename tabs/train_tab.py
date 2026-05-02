@@ -86,9 +86,9 @@ def preprocess_dataset(
     audio_dir: str | pathlib.Path,
     exp_dir: str,
     sr: SampleRate,
-    n_p: int,
     progress: gr.Progress = gr.Progress(),
 ) -> Generator[str, None, None]:
+    n_p = int(np.ceil(shared.config.n_cpu / 1.5))
     audio_dir_path = pathlib.Path(audio_dir)
     log_dir = pathlib.Path(shared.now_dir) / "logs" / exp_dir
     log_path = log_dir / "preprocess.log"
@@ -162,7 +162,6 @@ def preprocess_meta(
     audio_dir: str | pathlib.Path,
     audio_files: list[str | pathlib.Path] | None,
     sr: SampleRate,
-    n_p: int,
     progress: gr.Progress = gr.Progress(),
 ) -> Generator[str, None, None]:
     save_dir = pathlib.Path(audio_dir) / experiment_name
@@ -178,7 +177,6 @@ def preprocess_meta(
         audio_dir=save_dir,
         exp_dir=experiment_name,
         sr=sr,
-        n_p=n_p,
         progress=progress,
     ):
         yield update
@@ -186,12 +184,12 @@ def preprocess_meta(
 
 def extract_f0_feature(
     f0method: PitchExtractionMethod,
-    n_p: int,
     exp_dir: str,
     sr2: SampleRate,
     model_version: ModelVersion = MODEL_VERSION,
     progress: gr.Progress = gr.Progress(),
 ) -> Generator[str, None, None]:
+    n_p = int(np.ceil(shared.config.n_cpu / 1.5))
     log_dir = pathlib.Path(shared.now_dir) / "logs" / exp_dir
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "extract_f0_feature.log"
@@ -517,7 +515,6 @@ def one_click_training(
     model_version: ModelVersion,
     trainset_dir4: str,
     spk_id5: int,
-    np7: int,
     f0method8: PitchExtractionMethod,
     save_epoch10: int,
     total_epoch11: int,
@@ -532,7 +529,7 @@ def one_click_training(
     # step1: Process data
     progress = gr.Progress()
     progress(0.0, desc=shared.i18n("step1: processing data..."))
-    for update in preprocess_dataset(trainset_dir4, exp_dir1, sr2, np7):
+    for update in preprocess_dataset(trainset_dir4, exp_dir1, sr2):
         if not is_skip_update(update):
             final_sections.append(str(update))
 
@@ -540,7 +537,6 @@ def one_click_training(
     progress(0.0, desc=shared.i18n("step2: extracting feature & pitch"))
     for update in extract_f0_feature(
         f0method8,
-        np7,
         exp_dir1,
         sr2,
         model_version,
@@ -600,14 +596,6 @@ def create_train_tab() -> None:
                     value="v2",
                     interactive=True,
                 )
-                cpu_count = gr.Slider(
-                    minimum=0,
-                    maximum=shared.config.n_cpu,
-                    step=1,
-                    label=i18n("CPU Process Count"),
-                    value=int(np.ceil(shared.config.n_cpu / 1.5)),
-                    interactive=True,
-                )
 
         with gr.Group():
             gr.Markdown(value=i18n("## Preprocess"))
@@ -640,7 +628,6 @@ def create_train_tab() -> None:
                             audio_data_root,
                             audio_files,
                             target_sr,
-                            cpu_count,
                         ],
                         [info1],
                         api_name="train_preprocess",
@@ -663,7 +650,6 @@ def create_train_tab() -> None:
                         extract_f0_feature,
                         [
                             f0method8,
-                            cpu_count,
                             experiment_name,
                             target_sr,
                             model_version,
@@ -763,7 +749,6 @@ def create_train_tab() -> None:
                         model_version,
                         audio_data_root,
                         spk_id,
-                        cpu_count,
                         f0method8,
                         save_epoch,
                         total_epoch,
