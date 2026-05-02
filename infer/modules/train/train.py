@@ -106,18 +106,22 @@ def run(hps, training_logger):
         raise ValueError("V3 has no base model. Do not pass pretrained G/D paths.")
 
     train_dataset = TextAudioLoaderMultiNSFsid(hps.data.training_files, hps.data)
-    # It is possible that dataloader's workers are out of shared memory. Please try to raise your shared memory limit.
-    # num_workers=8 -> num_workers=4
     collate_fn = TextAudioCollateMultiNSFsid()
+    cpu_count = os.cpu_count() or 4
+    num_workers = int(os.environ.get("RVC_TRAIN_NUM_WORKERS", str(min(cpu_count, 8))))
+    prefetch_factor = int(os.environ.get("RVC_TRAIN_PREFETCH_FACTOR", "4"))
+    training_logger.info(
+        f"Training DataLoader workers: {num_workers}, prefetch_factor: {prefetch_factor}"
+    )
     train_loader = DataLoader(
         train_dataset,
-        num_workers=4,
+        num_workers=num_workers,
         shuffle=True,
         pin_memory=accelerator.device.type != "cpu",
         collate_fn=collate_fn,
         batch_size=hps.train.batch_size,
-        persistent_workers=True,
-        prefetch_factor=8,
+        persistent_workers=num_workers > 0,
+        prefetch_factor=prefetch_factor if num_workers > 0 else None,
     )
     if hps.version == "v3":
         codec = FrozenDacCodec(hps.data.sampling_rate, hps.model.dac_model_type)
