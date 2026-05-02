@@ -218,6 +218,9 @@ class Pipeline:
                     None,
                     None,
                     sid,
+                    None,
+                    None,
+                    max(1, audio.shape[0] // net_g.codec.hop_length),
                 )
                 audio1 = y_hat[0, 0].data.cpu().float().numpy()
             else:

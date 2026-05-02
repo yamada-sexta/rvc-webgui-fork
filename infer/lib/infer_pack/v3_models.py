@@ -87,12 +87,26 @@ class TransformerDacGenerator(nn.Module):
         sid: torch.Tensor,
         ids_slice: torch.Tensor | None = None,
         segment_frames: int | None = None,
+        target_frames: int | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         x = self.phone_proj(phone) + self.pitch_embed(pitch)
         x = x + self.spk_embed(sid).unsqueeze(1)
         max_len = phone.shape[1]
         padding_mask = torch.arange(max_len, device=phone.device).unsqueeze(0) >= phone_lengths.unsqueeze(1)
         x = self.encoder(x, src_key_padding_mask=padding_mask)
+        if target_frames is not None and x.shape[1] != target_frames:
+            x = F.interpolate(
+                x.transpose(1, 2),
+                size=target_frames,
+                mode="linear",
+                align_corners=False,
+            ).transpose(1, 2)
+            padding_mask = torch.zeros(
+                x.shape[0],
+                target_frames,
+                dtype=torch.bool,
+                device=x.device,
+            )
         latents = self.proj(self.norm(x)).transpose(1, 2)
         latents = latents.masked_fill(padding_mask.unsqueeze(1), 0.0)
         if ids_slice is not None and segment_frames is not None:

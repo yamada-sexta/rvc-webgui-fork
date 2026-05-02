@@ -308,11 +308,20 @@ def train_and_evaluate(
         with accelerator.autocast():
             if hps.version == "v3":
                 codec = net_g.module.codec if hasattr(net_g, "module") else net_g.codec
+                wave_codec = codec._resample_for_codec(wave.float())
+                with torch.no_grad():
+                    target_latents_full = codec.encode(wave_codec)
+                target_frames = target_latents_full.shape[-1]
                 segment_size = round(
                     hps.train.segment_size * codec.codec_sample_rate / hps.data.sampling_rate
                 )
-                segment_frames = max(1, segment_size // codec.hop_length)
-                max_start = torch.clamp(phone_lengths - segment_frames, min=0)
+                segment_frames = min(max(1, segment_size // codec.hop_length), target_frames)
+                max_start = torch.full(
+                    (phone_lengths.shape[0],),
+                    max(target_frames - segment_frames, 0),
+                    device=phone_lengths.device,
+                    dtype=torch.long,
+                )
                 ids_slice = (
                     torch.rand(phone_lengths.shape[0], device=phone_lengths.device)
                     * (max_start + 1).to(torch.float32)
@@ -327,12 +336,15 @@ def train_and_evaluate(
                     sid,
                     ids_slice,
                     segment_frames,
+                    target_frames,
                 )
-                wave = codec._resample_for_codec(wave.float())
                 wave = commons.slice_segments(wave, ids_slice * codec.hop_length, y_hat.shape[-1])
                 y_hat = y_hat[..., : wave.shape[-1]]
-                with torch.no_grad():
-                    target_latents = codec.encode(wave)
+                target_latents = commons.slice_segments(
+                    target_latents_full,
+                    ids_slice,
+                    segment_frames,
+                )
             else:
                 (
                     y_hat,
