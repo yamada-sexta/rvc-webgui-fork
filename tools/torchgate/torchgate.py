@@ -199,9 +199,7 @@ class TorchGate(torch.nn.Module):
 
         return sig_mask
 
-    def forward(
-        self, x: torch.Tensor, xn: torch.Tensor | None = None
-    ) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, xn: torch.Tensor | None = None) -> torch.Tensor:
         """
         Apply the proposed algorithm to the input signal.
 

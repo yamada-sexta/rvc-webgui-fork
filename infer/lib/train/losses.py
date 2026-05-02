@@ -1,7 +1,9 @@
 import torch
 
 
-def feature_loss(fmap_r: list[list[torch.Tensor]], fmap_g: list[list[torch.Tensor]]) -> torch.Tensor:
+def feature_loss(
+    fmap_r: list[list[torch.Tensor]], fmap_g: list[list[torch.Tensor]]
+) -> torch.Tensor:
     if not fmap_r or not fmap_r[0]:
         return torch.tensor(0.0)
     loss = torch.zeros((), device=fmap_g[0][0].device)
@@ -34,7 +36,9 @@ def discriminator_loss(
     return loss, r_losses, g_losses
 
 
-def generator_loss(disc_outputs: list[torch.Tensor]) -> tuple[torch.Tensor, list[torch.Tensor]]:
+def generator_loss(
+    disc_outputs: list[torch.Tensor],
+) -> tuple[torch.Tensor, list[torch.Tensor]]:
     if not disc_outputs:
         return torch.tensor(0.0), []
     loss = torch.zeros((), device=disc_outputs[0].device)

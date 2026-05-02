@@ -312,4 +312,3 @@ class SynthesizerTrnMs768NSFsid(SynthesizerTrnMsNSFsid):
             768,
             True,
         )
-

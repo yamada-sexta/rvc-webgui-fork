@@ -19,6 +19,7 @@ def remove_weight_norm(module: nn.Module, name: str = "weight") -> nn.Module:
     remove_parametrizations(module, name, leave_parametrized=True)
     return module
 
+
 LRELU_SLOPE = 0.1
 
 

@@ -14,6 +14,7 @@ from librosa.util import normalize, pad_center, tiny
 from scipy.signal import get_window
 
 from loguru import logger
+
 HiddenArray: TypeAlias = np.ndarray
 AudioInput: TypeAlias = torch.Tensor | np.ndarray
 
@@ -575,9 +576,12 @@ class RMVPE:
         self.mel_extractor = MelSpectrogram(
             is_half, 128, 16000, 1024, 160, None, 30, 8000
         ).to(device)
+
         def get_jit_model() -> torch.jit.ScriptModule:
             jit_model_path = model_path.with_suffix("")
-            jit_model_path = jit_model_path.with_suffix(".half.jit" if is_half else ".jit")
+            jit_model_path = jit_model_path.with_suffix(
+                ".half.jit" if is_half else ".jit"
+            )
             reload = False
             ckpt = None
             if jit_model_path.exists():

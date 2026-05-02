@@ -19,7 +19,9 @@ def dynamic_range_compression_torch(
     return torch.log(torch.clamp(x, min=clip_val) * C)
 
 
-def dynamic_range_decompression_torch(x: torch.Tensor, C: int | float = 1) -> torch.Tensor:
+def dynamic_range_decompression_torch(
+    x: torch.Tensor, C: int | float = 1
+) -> torch.Tensor:
     """
     PARAMS
     ------
