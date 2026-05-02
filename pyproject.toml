@@ -39,6 +39,7 @@ dependencies = [
     "loguru>=0.7.3",
     "pydantic>=2.11.10",
     "accelerate>=1.13.0",
+    "bigvgan>=2.4.1",
 ]
 
 [tool.uv.sources]
