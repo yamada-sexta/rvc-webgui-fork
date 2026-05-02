@@ -95,6 +95,8 @@ class ModelSection(BaseModel):
     spk_embed_dim: int
     dac_model_type: str = "descript/dac_16khz"
     dac_latent_dim: int = 1024
+    dac_num_codebooks: int = 12
+    dac_codebook_size: int = 1024
     transformer_layers: int = 6
     transformer_ffn_channels: int = 768
 

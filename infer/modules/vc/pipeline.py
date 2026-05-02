@@ -221,6 +221,7 @@ class Pipeline:
                     None,
                     None,
                     max(1, audio.shape[0] // net_g.codec.hop_length),
+                    True,
                 )
                 audio1 = y_hat[0, 0].data.cpu().float().numpy()
             else:
@@ -236,6 +237,14 @@ class Pipeline:
         times[0] += t1 - t0
         times[2] += t2 - t1
         return audio1
+
+    @staticmethod
+    def trim_padding(audio: np.ndarray, pad: int) -> np.ndarray:
+        if pad <= 0:
+            return audio
+        if audio.shape[0] <= pad * 2:
+            return audio
+        return audio[pad:-pad]
 
     def pipeline(
         self,
@@ -342,20 +351,23 @@ class Pipeline:
             )  # Progress update
             t = t // self.window * self.window
             audio_segments.append(
-                self.vc(
-                    model,
-                    net_g,
-                    sid_tensor,
-                    audio_pad[s : t + self.t_pad2 + self.window],
-                    pitch[:, s // self.window : (t + self.t_pad2) // self.window],
-                    pitchf[:, s // self.window : (t + self.t_pad2) // self.window],
-                    times,
-                    index,
-                    big_npy,
-                    index_rate,
-                    version,
-                    protect,
-                )[self.t_pad_tgt : -self.t_pad_tgt]
+                self.trim_padding(
+                    self.vc(
+                        model,
+                        net_g,
+                        sid_tensor,
+                        audio_pad[s : t + self.t_pad2 + self.window],
+                        pitch[:, s // self.window : (t + self.t_pad2) // self.window],
+                        pitchf[:, s // self.window : (t + self.t_pad2) // self.window],
+                        times,
+                        index,
+                        big_npy,
+                        index_rate,
+                        version,
+                        protect,
+                    ),
+                    self.t_pad_tgt,
+                )
             )
             s = t
 
@@ -363,23 +375,29 @@ class Pipeline:
             0.95, desc="Finalizing conversion..."
         )  # Progress update before last segment
 
+        start = 0 if t is None else t
         audio_segments.append(
-            self.vc(
-                model,
-                net_g,
-                sid_tensor,
-                audio_pad[t:],
-                pitch[:, t // self.window :] if t is not None else pitch,
-                pitchf[:, t // self.window :] if t is not None else pitchf,
-                times,
-                index,
-                big_npy,
-                index_rate,
-                version,
-                protect,
-            )[self.t_pad_tgt : -self.t_pad_tgt]
+            self.trim_padding(
+                self.vc(
+                    model,
+                    net_g,
+                    sid_tensor,
+                    audio_pad[start:],
+                    pitch[:, start // self.window :],
+                    pitchf[:, start // self.window :],
+                    times,
+                    index,
+                    big_npy,
+                    index_rate,
+                    version,
+                    protect,
+                ),
+                self.t_pad_tgt,
+            )
         )
         audio_opt = np.concatenate(audio_segments)
+        if audio_opt.shape[0] == 0:
+            raise ValueError("Conversion produced empty audio.")
         if rms_mix_rate != 1:
             audio_opt = change_rms(audio, 16000, audio_opt, tgt_sr, rms_mix_rate)
         if tgt_sr != resample_sr >= 16000:

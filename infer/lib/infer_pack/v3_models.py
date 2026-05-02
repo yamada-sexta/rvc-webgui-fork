@@ -40,6 +40,26 @@ class FrozenDacCodec(nn.Module):
             audio = audio.unsqueeze(1)
         return audio
 
+    def decode_codes(self, audio_codes: torch.Tensor) -> torch.Tensor:
+        outputs = cast(Any, self.codec.decode(audio_codes=audio_codes))
+        audio = cast(torch.Tensor, outputs.audio_values)
+        if audio.dim() == 2:
+            audio = audio.unsqueeze(1)
+        return audio
+
+    def logits_to_quantized(self, logits: torch.Tensor) -> torch.Tensor:
+        quantized: torch.Tensor | float = 0.0
+        probabilities = torch.softmax(logits.float(), dim=2).to(logits.dtype)
+        for codebook_idx, quantizer in enumerate(self.codec.quantizer.quantizers):
+            codebook = quantizer.codebook.weight.to(probabilities)
+            embedded = torch.einsum(
+                "bkt,ke->bet",
+                probabilities[:, codebook_idx],
+                codebook,
+            )
+            quantized = quantized + quantizer.out_proj(embedded)
+        return cast(torch.Tensor, quantized)
+
     def to_audio_device(self, device: torch.device) -> None:
         if next(self.codec.parameters()).device != device:
             self.codec.to(device)
@@ -58,6 +78,8 @@ class TransformerDacGenerator(nn.Module):
         gin_channels: int,
         dac_latent_dim: int,
         codec: FrozenDacCodec,
+        dac_num_codebooks: int = 12,
+        dac_codebook_size: int = 1024,
     ) -> None:
         super().__init__()
         self.codec = codec
@@ -74,7 +96,9 @@ class TransformerDacGenerator(nn.Module):
         )
         self.encoder = nn.TransformerEncoder(layer, num_layers=n_layers)
         self.norm = nn.LayerNorm(hidden_channels)
-        self.proj = nn.Linear(hidden_channels, dac_latent_dim)
+        self.dac_num_codebooks = dac_num_codebooks
+        self.dac_codebook_size = dac_codebook_size
+        self.proj = nn.Linear(hidden_channels, dac_num_codebooks * dac_codebook_size)
 
     def forward(
         self,
@@ -88,6 +112,7 @@ class TransformerDacGenerator(nn.Module):
         ids_slice: torch.Tensor | None = None,
         segment_frames: int | None = None,
         target_frames: int | None = None,
+        decode_from_codes: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         x = self.phone_proj(phone) + self.pitch_embed(pitch)
         x = x + self.spk_embed(sid).unsqueeze(1)
@@ -107,10 +132,28 @@ class TransformerDacGenerator(nn.Module):
                 dtype=torch.bool,
                 device=x.device,
             )
-        latents = self.proj(self.norm(x)).transpose(1, 2)
-        latents = latents.masked_fill(padding_mask.unsqueeze(1), 0.0)
+        logits = self.proj(self.norm(x))
+        logits = logits.reshape(
+            logits.shape[0],
+            logits.shape[1],
+            self.dac_num_codebooks,
+            self.dac_codebook_size,
+        ).permute(0, 2, 3, 1)
+        logits = logits.masked_fill(padding_mask[:, None, None, :], 0.0)
         if ids_slice is not None and segment_frames is not None:
-            latents = commons.slice_segments(latents, ids_slice, segment_frames)
-        self.codec.to_audio_device(latents.device)
-        y_hat = self.codec.decode(latents)
-        return y_hat, latents, phone_lengths
+            logits = commons.slice_segments(
+                logits.flatten(1, 2), ids_slice, segment_frames
+            ).reshape(
+                logits.shape[0],
+                self.dac_num_codebooks,
+                self.dac_codebook_size,
+                segment_frames,
+            )
+        self.codec.to_audio_device(logits.device)
+        if decode_from_codes:
+            audio_codes = logits.argmax(dim=2)
+            y_hat = self.codec.decode_codes(audio_codes)
+        else:
+            quantized = self.codec.logits_to_quantized(logits)
+            y_hat = self.codec.decode(quantized)
+        return y_hat, logits, phone_lengths

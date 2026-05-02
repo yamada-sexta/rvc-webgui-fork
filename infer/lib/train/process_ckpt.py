@@ -42,6 +42,8 @@ class HParamsModel(Protocol):
     gin_channels: int
     dac_model_type: str
     dac_latent_dim: int
+    dac_num_codebooks: int
+    dac_codebook_size: int
     transformer_layers: int
     transformer_ffn_channels: int
 
@@ -78,6 +80,8 @@ def savee(
                 "n_heads": hps.model.n_heads,
                 "dac_model_type": hps.model.dac_model_type,
                 "dac_latent_dim": hps.model.dac_latent_dim,
+                "dac_num_codebooks": hps.model.dac_num_codebooks,
+                "dac_codebook_size": hps.model.dac_codebook_size,
                 "transformer_layers": hps.model.transformer_layers,
                 "transformer_ffn_channels": hps.model.transformer_ffn_channels,
                 "spk_embed_dim": hps.model.spk_embed_dim,

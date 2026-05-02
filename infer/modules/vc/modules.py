@@ -150,7 +150,10 @@ class VC:
                 0,
                 int(v3_config["dac_latent_dim"]),
                 codec,
+                int(v3_config.get("dac_num_codebooks", 12)),
+                int(v3_config.get("dac_codebook_size", 1024)),
             )
+            self.tgt_sr = codec.codec_sample_rate
         elif self.version == "v2" and self.cpt.get("f0", 1) == 1:
             v2_config = self.cpt["config"]
             if not isinstance(v2_config, list):

@@ -45,6 +45,8 @@
     "spk_embed_dim": 109,
     "dac_model_type": "descript/dac_16khz",
     "dac_latent_dim": 1024,
+    "dac_num_codebooks": 12,
+    "dac_codebook_size": 1024,
     "transformer_layers": 6,
     "transformer_ffn_channels": 768
   }

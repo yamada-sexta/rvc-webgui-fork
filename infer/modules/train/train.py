@@ -136,6 +136,8 @@ def run(hps, training_logger):
             hps.model.gin_channels,
             hps.model.dac_latent_dim,
             codec,
+            hps.model.dac_num_codebooks,
+            hps.model.dac_codebook_size,
         )
     else:
         net_g = RVC_Model_f0(
@@ -300,8 +302,8 @@ def train_and_evaluate(
             dac_lengths,
             sid,
         ) = info
-        dac_latents: torch.Tensor | None = None
-        target_latents: torch.Tensor | None = None
+        dac_logits: torch.Tensor | None = None
+        target_codes: torch.Tensor | None = None
         y_mel: torch.Tensor | None = None
         y_hat_mel: torch.Tensor | None = None
         z_p: torch.Tensor | None = None
@@ -316,7 +318,7 @@ def train_and_evaluate(
                 if dac_targets is None or dac_lengths is None:
                     raise ValueError("V3 training requires precomputed DAC safetensors.")
                 codec = net_g.module.codec if hasattr(net_g, "module") else net_g.codec
-                target_latents_full = dac_targets
+                target_codes_full = dac_targets
                 target_frames = int(dac_lengths.min().item())
                 wave = codec._resample_for_codec(wave.float())
                 segment_size = round(
@@ -333,7 +335,7 @@ def train_and_evaluate(
                     torch.rand(phone_lengths.shape[0], device=phone_lengths.device)
                     * (max_start + 1).to(torch.float32)
                 ).to(torch.long)
-                y_hat, dac_latents, _ = net_g(
+                y_hat, dac_logits, _ = net_g(
                     phone,
                     phone_lengths,
                     pitch,
@@ -347,11 +349,11 @@ def train_and_evaluate(
                 )
                 wave = commons.slice_segments(wave, ids_slice * codec.hop_length, y_hat.shape[-1])
                 y_hat = y_hat[..., : wave.shape[-1]]
-                target_latents = commons.slice_segments(
-                    target_latents_full,
+                target_codes = commons.slice_segments(
+                    target_codes_full,
                     ids_slice,
                     segment_frames,
-                )
+                ).long()
             else:
                 (
                     y_hat,
@@ -404,13 +406,15 @@ def train_and_evaluate(
             y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = net_d(wave, y_hat)
             with nullcontext():
                 if hps.version == "v3":
-                    assert dac_latents is not None
-                    assert target_latents is not None
-                    length = min(dac_latents.shape[-1], target_latents.shape[-1])
+                    assert dac_logits is not None
+                    assert target_codes is not None
+                    length = min(dac_logits.shape[-1], target_codes.shape[-1])
                     loss_recon = (
-                        F.l1_loss(
-                            dac_latents[..., :length],
-                            target_latents[..., :length],
+                        F.cross_entropy(
+                            dac_logits[..., :length]
+                            .permute(0, 1, 3, 2)
+                            .reshape(-1, dac_logits.shape[2]),
+                            target_codes[..., :length].reshape(-1),
                         )
                         * hps.train.c_dac
                     )

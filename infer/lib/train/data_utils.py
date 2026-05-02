@@ -96,10 +96,10 @@ class TextAudioLoaderMultiNSFsid(torch.utils.data.Dataset):
     def get_dac_latents(self, dac_path: Path) -> torch.Tensor:
         if not dac_path.exists():
             raise FileNotFoundError(dac_path)
-        latents = load_safetensors(dac_path)["latents"]
-        if latents.dim() != 2:
-            raise ValueError(f"Expected DAC latents [channels, frames], got {latents.shape}")
-        return latents.float()
+        codes = load_safetensors(dac_path)["codes"]
+        if codes.dim() != 2:
+            raise ValueError(f"Expected DAC codes [codebooks, frames], got {codes.shape}")
+        return codes.long()
 
     def load_tensor(self, path: Path, key: str) -> torch.Tensor:
         if path.suffix == ".safetensors":
@@ -248,7 +248,7 @@ class TextAudioCollateMultiNSFsid:
                 raise ValueError("Cannot mix samples with and without DAC latents.")
             dac_tensors = [item for item in dac_items if item is not None]
             max_dac_len = max([item.size(1) for item in dac_tensors])
-            dac_padded = torch.FloatTensor(
+            dac_padded = torch.LongTensor(
                 len(batch), dac_tensors[0].size(0), max_dac_len
             )
             dac_lengths = torch.LongTensor(len(batch))

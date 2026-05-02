@@ -511,6 +511,8 @@ class ModelHParams:
     spk_embed_dim: int
     dac_model_type: str = "descript/dac_16khz"
     dac_latent_dim: int = 1024
+    dac_num_codebooks: int = 12
+    dac_codebook_size: int = 1024
     transformer_layers: int = 6
     transformer_ffn_channels: int = 768
 
@@ -598,6 +600,8 @@ class HParams:
                 spk_embed_dim=config.model.spk_embed_dim,
                 dac_model_type=config.model.dac_model_type,
                 dac_latent_dim=config.model.dac_latent_dim,
+                dac_num_codebooks=config.model.dac_num_codebooks,
+                dac_codebook_size=config.model.dac_codebook_size,
                 transformer_layers=config.model.transformer_layers,
                 transformer_ffn_channels=config.model.transformer_ffn_channels,
             ),
