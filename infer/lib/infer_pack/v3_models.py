@@ -1,0 +1,102 @@
+from typing import Any, cast
+
+import torch
+from torch import nn
+from torch.nn import functional as F
+
+from infer.lib.infer_pack import commons
+
+
+class FrozenDacCodec(nn.Module):
+    def __init__(self, sample_rate: int, model_id: str = "descript/dac_16khz") -> None:
+        super().__init__()
+        from transformers import DacModel
+
+        self.sample_rate = sample_rate
+        self.codec = DacModel.from_pretrained(model_id)
+        self.codec_sample_rate = int(getattr(self.codec.config, "sampling_rate", 16000))
+        self.hop_length = int(getattr(self.codec.config, "hop_length", 512))
+        self.codec.eval()
+        for parameter in self.codec.parameters():
+            parameter.requires_grad_(False)
+
+    def _resample_for_codec(self, audio: torch.Tensor) -> torch.Tensor:
+        if self.sample_rate == self.codec_sample_rate:
+            return audio
+        target_length = max(1, round(audio.shape[-1] * self.codec_sample_rate / self.sample_rate))
+        return F.interpolate(audio, size=target_length, mode="linear", align_corners=False)
+
+    def encode(self, audio: torch.Tensor) -> torch.Tensor:
+        if audio.dim() == 2:
+            audio = audio.unsqueeze(1)
+        audio = self._resample_for_codec(audio.clamp(-1.0, 1.0))
+        outputs = cast(Any, self.codec.encode(audio))
+        return cast(torch.Tensor, outputs.quantized_representation)
+
+    def decode(self, latents: torch.Tensor) -> torch.Tensor:
+        outputs = cast(Any, self.codec.decode(latents))
+        audio = cast(torch.Tensor, outputs.audio_values)
+        if audio.dim() == 2:
+            audio = audio.unsqueeze(1)
+        return audio
+
+    def to_audio_device(self, device: torch.device) -> None:
+        if next(self.codec.parameters()).device != device:
+            self.codec.to(device)
+
+
+class TransformerDacGenerator(nn.Module):
+    def __init__(
+        self,
+        phone_channels: int,
+        hidden_channels: int,
+        filter_channels: int,
+        n_heads: int,
+        n_layers: int,
+        p_dropout: float,
+        spk_embed_dim: int,
+        gin_channels: int,
+        dac_latent_dim: int,
+        codec: FrozenDacCodec,
+    ) -> None:
+        super().__init__()
+        self.codec = codec
+        self.phone_proj = nn.Linear(phone_channels, hidden_channels)
+        self.pitch_embed = nn.Embedding(256, hidden_channels)
+        self.spk_embed = nn.Embedding(spk_embed_dim, hidden_channels)
+        layer = nn.TransformerEncoderLayer(
+            d_model=hidden_channels,
+            nhead=n_heads,
+            dim_feedforward=filter_channels,
+            dropout=float(p_dropout),
+            batch_first=True,
+            norm_first=True,
+        )
+        self.encoder = nn.TransformerEncoder(layer, num_layers=n_layers)
+        self.norm = nn.LayerNorm(hidden_channels)
+        self.proj = nn.Linear(hidden_channels, dac_latent_dim)
+
+    def forward(
+        self,
+        phone: torch.Tensor,
+        phone_lengths: torch.Tensor,
+        pitch: torch.Tensor,
+        pitchf: torch.Tensor,
+        spec: torch.Tensor | None,
+        spec_lengths: torch.Tensor | None,
+        sid: torch.Tensor,
+        ids_slice: torch.Tensor | None = None,
+        segment_frames: int | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        x = self.phone_proj(phone) + self.pitch_embed(pitch)
+        x = x + self.spk_embed(sid).unsqueeze(1)
+        max_len = phone.shape[1]
+        padding_mask = torch.arange(max_len, device=phone.device).unsqueeze(0) >= phone_lengths.unsqueeze(1)
+        x = self.encoder(x, src_key_padding_mask=padding_mask)
+        latents = self.proj(self.norm(x)).transpose(1, 2)
+        latents = latents.masked_fill(padding_mask.unsqueeze(1), 0.0)
+        if ids_slice is not None and segment_frames is not None:
+            latents = commons.slice_segments(latents, ids_slice, segment_frames)
+        self.codec.to_audio_device(latents.device)
+        y_hat = self.codec.decode(latents)
+        return y_hat, latents, phone_lengths
