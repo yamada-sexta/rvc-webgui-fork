@@ -1,9 +1,11 @@
+from pathlib import Path
 from typing import Any, cast
 
 import torch
 from torch import nn
 from torch.nn import Conv1d
 from torch.nn import functional as F
+from huggingface_hub import hf_hub_download
 
 
 def _load_bigvgan():
@@ -14,6 +16,23 @@ def _load_bigvgan():
             "BigVGAN is required for v3 models. Install dependencies with `uv sync`."
         ) from exc
     return bigvgan
+
+
+def _load_pretrained_bigvgan(model_id: str, use_cuda_kernel: bool):
+    bigvgan = _load_bigvgan()
+    config_path = Path(hf_hub_download(repo_id=model_id, filename="config.json"))
+    weights_path = Path(
+        hf_hub_download(repo_id=model_id, filename="bigvgan_generator.pt")
+    )
+    h = bigvgan.bigvgan.load_hparams_from_json(config_path)
+    model = bigvgan.BigVGAN(h, use_cuda_kernel=use_cuda_kernel)
+    checkpoint_dict = torch.load(weights_path, map_location="cpu", weights_only=False)
+    try:
+        model.load_state_dict(checkpoint_dict["generator"])
+    except RuntimeError:
+        model.remove_weight_norm()
+        model.load_state_dict(checkpoint_dict["generator"])
+    return model
 
 
 class ResidualConvBlock(nn.Module):
@@ -94,9 +113,8 @@ class BigVGANNSFGenerator(nn.Module):
         if isinstance(sr, int) and sr != 44100:
             raise ValueError("v3 BigVGAN generator currently supports only 44100 Hz.")
 
-        bigvgan = _load_bigvgan()
-        self.bigvgan = bigvgan.BigVGAN.from_pretrained(
-            model_id, use_cuda_kernel=use_cuda_kernel
+        self.bigvgan = _load_pretrained_bigvgan(
+            model_id=model_id, use_cuda_kernel=use_cuda_kernel
         )
         self.bigvgan.remove_weight_norm()
         self.bigvgan.eval()
