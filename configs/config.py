@@ -12,7 +12,6 @@ from loguru import logger
 from lib.accelerate_utils import get_accelerator, use_half_precision
 from lib.json_validation import TrainingConfig
 
-
 VersionConfigPath: TypeAlias = Literal["v2/48k.json", "v2/32k.json"]
 
 version_config_list: list[VersionConfigPath] = [
@@ -161,7 +160,5 @@ class Config:
             x_max = 32
         if self.instead:
             logger.info(f"Use {self.instead} instead")
-        logger.info(
-            f"Half-precision floating-point: {is_half}, device: {device}"
-        )
+        logger.info(f"Half-precision floating-point: {is_half}, device: {device}")
         return x_pad, x_query, x_center, x_max

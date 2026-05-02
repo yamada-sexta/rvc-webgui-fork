@@ -21,6 +21,7 @@ def remove_weight_norm(module: nn.Module, name: str = "weight") -> nn.Module:
     remove_parametrizations(module, name, leave_parametrized=True)
     return module
 
+
 class TextEncoder(nn.Module):
     def __init__(
         self,
@@ -844,7 +845,6 @@ class SynthesizerTrnMs768NSFsid(SynthesizerTrnMs256NSFsid):
         )
 
 
-
 class MultiPeriodDiscriminator(torch.nn.Module):
     def __init__(self, use_spectral_norm=False):
         super(MultiPeriodDiscriminator, self).__init__()
@@ -857,9 +857,12 @@ class MultiPeriodDiscriminator(torch.nn.Module):
         ]
         self.discriminators = nn.ModuleList(discs)
 
-    def forward(
-        self, y: torch.Tensor, y_hat: torch.Tensor
-    ) -> tuple[list[torch.Tensor], list[torch.Tensor], list[list[torch.Tensor]], list[list[torch.Tensor]]]:
+    def forward(self, y: torch.Tensor, y_hat: torch.Tensor) -> tuple[
+        list[torch.Tensor],
+        list[torch.Tensor],
+        list[list[torch.Tensor]],
+        list[list[torch.Tensor]],
+    ]:
         y_d_rs = []  #
         y_d_gs = []
         fmap_rs = []
@@ -889,9 +892,12 @@ class MultiPeriodDiscriminatorV2(torch.nn.Module):
         ]
         self.discriminators = nn.ModuleList(discs)
 
-    def forward(
-        self, y: torch.Tensor, y_hat: torch.Tensor
-    ) -> tuple[list[torch.Tensor], list[torch.Tensor], list[list[torch.Tensor]], list[list[torch.Tensor]]]:
+    def forward(self, y: torch.Tensor, y_hat: torch.Tensor) -> tuple[
+        list[torch.Tensor],
+        list[torch.Tensor],
+        list[list[torch.Tensor]],
+        list[list[torch.Tensor]],
+    ]:
         y_d_rs = []  #
         y_d_gs = []
         fmap_rs = []

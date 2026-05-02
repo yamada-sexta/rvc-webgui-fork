@@ -216,15 +216,11 @@ def compute_mask_indices(
             mask_idc = torch.asarray(mask_idc, dtype=torch.float)
         if len(mask_idc) > min_len and require_same_masks:
             keep = random.sample(range(len(mask_idc)), min_len)
-            mask_idc = torch.asarray(
-                [mask_idc[j].item() for j in keep]
-            )
+            mask_idc = torch.asarray([mask_idc[j].item() for j in keep])
         if mask_dropout > 0:
             num_holes = int(round(len(mask_idc) * mask_dropout))
             keep = random.sample(range(len(mask_idc)), len(mask_idc) - num_holes)
-            mask_idc = torch.asarray(
-                [mask_idc[j].item() for j in keep]
-            )
+            mask_idc = torch.asarray([mask_idc[j].item() for j in keep])
 
         mask[i, mask_idc.int()] = True
 

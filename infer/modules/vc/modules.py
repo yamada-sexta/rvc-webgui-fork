@@ -57,9 +57,7 @@ class VC:
         # self.config = config
         self.n_spk: int | None = None
         self.tgt_sr: int | None = None
-        self.net_g: (
-            SynthesizerTrnMs768NSFsid | None
-        ) = None
+        self.net_g: SynthesizerTrnMs768NSFsid | None = None
         self.pipeline: Pipeline | None = None
         self.cpt: RvcCheckpoint | None = None
         self.version: str = "UNKNOWN"

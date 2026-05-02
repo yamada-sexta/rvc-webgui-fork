@@ -38,6 +38,7 @@ def configure_startup_logging() -> None:
     )
     logging.basicConfig(handlers=[InterceptHandler()], level=logging.INFO, force=True)
 
+
 load_dotenv()
 configure_startup_logging()
 logging.getLogger("numba").setLevel(logging.WARNING)

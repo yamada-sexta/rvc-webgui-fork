@@ -20,7 +20,12 @@ from pydantic import ValidationError
 from sklearn.cluster import MiniBatchKMeans
 
 import shared
-from lib.json_validation import JsonLogPayload, LogEventName, ModelVersion, SampleRateName
+from lib.json_validation import (
+    JsonLogPayload,
+    LogEventName,
+    ModelVersion,
+    SampleRateName,
+)
 from shared import i18n
 
 ProgressComponent = gr.Progress
@@ -44,7 +49,9 @@ def read_json_log_records(log_path: pathlib.Path) -> list[JsonLogPayload]:
 
 
 def format_log_messages(records: list[JsonLogPayload]) -> str:
-    return "\n".join(record.record.message for record in records if record.record.message)
+    return "\n".join(
+        record.record.message for record in records if record.record.message
+    )
 
 
 def get_latest_event(
@@ -236,13 +243,19 @@ def extract_f0_feature(
     records = read_json_log_records(log_path)
     log = format_log_messages(records)
     if p.wait() != 0:
-        yield "Feature extraction failed.\n" + log if log else "Feature extraction failed."
+        yield (
+            "Feature extraction failed.\n" + log
+            if log
+            else "Feature extraction failed."
+        )
         return
     logger.info(f"Feature extraction stage completed for {exp_dir}")
     yield log
 
 
-def get_pretrained_models(path_str: str, f0_str: str, sr2: SampleRate) -> tuple[str, str]:
+def get_pretrained_models(
+    path_str: str, f0_str: str, sr2: SampleRate
+) -> tuple[str, str]:
     if_pretrained_generator_exist = os.access(
         "assets/pretrained%s/%sG%s.pth" % (path_str, f0_str, sr2), os.F_OK
     )
@@ -576,7 +589,9 @@ def one_click_training(
         if not is_skip_update(update):
             final_sections.append(str(update))
     final_sections.append(
-        i18n("Training finished, you can view the console training log or train.log in the experiment folder")
+        i18n(
+            "Training finished, you can view the console training log or train.log in the experiment folder"
+        )
     )
 
     # step3b: Train index

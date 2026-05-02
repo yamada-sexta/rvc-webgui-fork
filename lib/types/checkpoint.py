@@ -3,7 +3,6 @@ from typing import NotRequired, TypedDict, cast
 
 import torch
 
-
 type SynthesizerConfigValue = int | float | str | list[int] | list[list[int]] | None
 type SynthesizerConfig = list[SynthesizerConfigValue]
 type SynthesizerConfigArgs = tuple[

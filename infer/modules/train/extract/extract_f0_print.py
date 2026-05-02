@@ -102,9 +102,8 @@ class FeatureInput:
                         message=f"Processing pitch {idx + 1}/{len(paths)}: {Path(inp_path).name}",
                         file=inp_path,
                     ).info(f"Starting f0 for {Path(inp_path).name}")
-                    skipped = (
-                        os.path.exists(opt_path1 + ".npy")
-                        and os.path.exists(opt_path2 + ".npy")
+                    skipped = os.path.exists(opt_path1 + ".npy") and os.path.exists(
+                        opt_path2 + ".npy"
                     )
                     if not skipped:
                         audio = load_audio(inp_path, self.fs)

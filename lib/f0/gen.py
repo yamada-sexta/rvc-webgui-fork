@@ -265,9 +265,7 @@ def extract_f0(
         pd = torchcrepe.filter.median(pd, 3)
         f0 = torchcrepe.filter.mean(f0, 3)
         f0[pd < 0.1] = 0
-        f0 = _interpolate_f0(
-            _resize_f0(f0[0].detach().cpu().numpy(), p_len)
-        )[0]
+        f0 = _interpolate_f0(_resize_f0(f0[0].detach().cpu().numpy(), p_len))[0]
     elif f0_method == "rmvpe":
         if "rmvpe" not in state:
             from infer.lib.rmvpe import RMVPE

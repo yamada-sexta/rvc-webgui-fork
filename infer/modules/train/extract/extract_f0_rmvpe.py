@@ -15,6 +15,7 @@ from infer.lib.audio import load_audio
 from lib.f0 import Generator
 from lib.accelerate_utils import device_string, get_accelerator, use_half_precision
 
+
 class ExtractF0RmvpeArgs(Tap):
     # Experiment directory.
     exp_dir: Path
@@ -99,9 +100,10 @@ class FeatureInput:
                         file=inp_path,
                         device=device_string(),
                     ).info(f"Starting RMVPE f0 for {Path(inp_path).name}")
-                    skipped = Path(f"{opt_path1}.npy").exists() and Path(
-                        f"{opt_path2}.npy"
-                    ).exists()
+                    skipped = (
+                        Path(f"{opt_path1}.npy").exists()
+                        and Path(f"{opt_path2}.npy").exists()
+                    )
                     if not skipped:
                         audio = load_audio(inp_path, self.fs)
                         p_len = audio.shape[0] // self.hop

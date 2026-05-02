@@ -58,7 +58,9 @@ logger.add(
 )
 
 
-logger.bind(event="feature_args", argv=sys.argv[1:]).info("Received feature extraction args")
+logger.bind(event="feature_args", argv=sys.argv[1:]).info(
+    "Received feature extraction args"
+)
 model_path = Path("assets/hubert/hubert_base.pt")
 
 logger.info(f"Feature extraction output directory: {exp_dir}")
