@@ -62,6 +62,7 @@ class VC:
         self.net_g: SynthesizerTrnMs768NSFsid | TransformerDacGenerator | None = None
         self.pipeline: Pipeline | None = None
         self.cpt: RvcCheckpoint | None = None
+        self.dac_codec: FrozenDacCodec | None = None
         self.version: str = "UNKNOWN"
         self.hubert_model: HubertModel | None = None
         self.config: Config = config
@@ -139,6 +140,7 @@ class VC:
                 int(v3_config["sampling_rate"]),
                 str(v3_config["dac_model_type"]),
             )
+            self.dac_codec = codec
             self.net_g = TransformerDacGenerator(
                 int(v3_config["phone_channels"]),
                 int(v3_config["hidden_channels"]),
@@ -149,12 +151,12 @@ class VC:
                 int(v3_config["spk_embed_dim"]),
                 0,
                 int(v3_config["dac_latent_dim"]),
-                codec,
                 int(v3_config.get("dac_num_codebooks", 12)),
                 int(v3_config.get("dac_codebook_size", 1024)),
             )
             self.tgt_sr = codec.codec_sample_rate
         elif self.version == "v2" and self.cpt.get("f0", 1) == 1:
+            self.dac_codec = None
             v2_config = self.cpt["config"]
             if not isinstance(v2_config, list):
                 raise ValueError("V2 checkpoint config must be a list.")
@@ -254,6 +256,7 @@ class VC:
                 version=self.version,
                 protect=protect,
                 f0_file=f0_file,
+                dac_codec=self.dac_codec,
                 progress=progress,
             )
             if self.tgt_sr != resample_sr >= 16000:

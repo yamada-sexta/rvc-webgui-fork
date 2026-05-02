@@ -124,7 +124,7 @@ def run(hps, training_logger):
         prefetch_factor=prefetch_factor if num_workers > 0 else None,
     )
     if hps.version == "v3":
-        codec = FrozenDacCodec(hps.data.sampling_rate, hps.model.dac_model_type)
+        dac_codec = FrozenDacCodec(hps.data.sampling_rate, hps.model.dac_model_type)
         net_g = TransformerDacGenerator(
             768,
             hps.model.hidden_channels,
@@ -135,11 +135,11 @@ def run(hps, training_logger):
             hps.model.spk_embed_dim,
             hps.model.gin_channels,
             hps.model.dac_latent_dim,
-            codec,
             hps.model.dac_num_codebooks,
             hps.model.dac_codebook_size,
         )
     else:
+        dac_codec = None
         net_g = RVC_Model_f0(
             hps.data.filter_length // 2 + 1,
             hps.train.segment_size // hps.data.hop_length,
@@ -162,8 +162,17 @@ def run(hps, training_logger):
             sr=hps.sample_rate,
         )
     net_d = MultiPeriodDiscriminator(hps.model.use_spectral_norm)
+    trainable_g_params = [parameter for parameter in net_g.parameters() if parameter.requires_grad]
+    frozen_g_params = [parameter for parameter in net_g.parameters() if not parameter.requires_grad]
+    training_logger.info(
+        "Generator trainable parameters: "
+        f"{sum(parameter.numel() for parameter in trainable_g_params):,}; "
+        f"frozen parameters: {sum(parameter.numel() for parameter in frozen_g_params):,}"
+    )
+    if not trainable_g_params:
+        raise ValueError("Generator has no trainable parameters.")
     optim_g = torch.optim.AdamW(
-        net_g.parameters(),
+        trainable_g_params,
         hps.train.learning_rate,
         betas=hps.train.betas,
         eps=hps.train.eps,
@@ -252,7 +261,7 @@ def run(hps, training_logger):
             accelerator,
             [train_loader, None],
             training_logger,
-            None,
+            dac_codec,
         )
 
 
@@ -266,7 +275,7 @@ def train_and_evaluate(
     accelerator,
     loaders,
     logger,
-    dac_loss,
+    dac_codec,
 ):
     net_g, net_d = nets
     optim_g, optim_d = optims
@@ -317,7 +326,10 @@ def train_and_evaluate(
             if hps.version == "v3":
                 if dac_targets is None or dac_lengths is None:
                     raise ValueError("V3 training requires precomputed DAC safetensors.")
-                codec = net_g.module.codec if hasattr(net_g, "module") else net_g.codec
+                if dac_codec is None:
+                    raise ValueError("V3 training requires a frozen DAC codec.")
+                codec = dac_codec
+                codec.to_audio_device(phone.device)
                 target_codes_full = dac_targets
                 target_frames = int(dac_lengths.min().item())
                 wave = codec._resample_for_codec(wave.float())
@@ -335,7 +347,7 @@ def train_and_evaluate(
                     torch.rand(phone_lengths.shape[0], device=phone_lengths.device)
                     * (max_start + 1).to(torch.float32)
                 ).to(torch.long)
-                y_hat, dac_logits, _ = net_g(
+                dac_logits, _ = net_g(
                     phone,
                     phone_lengths,
                     pitch,
@@ -347,6 +359,8 @@ def train_and_evaluate(
                     segment_frames,
                     target_frames,
                 )
+                quantized = codec.logits_to_quantized(dac_logits)
+                y_hat = codec.decode(quantized)
                 wave = commons.slice_segments(wave, ids_slice * codec.hop_length, y_hat.shape[-1])
                 y_hat = y_hat[..., : wave.shape[-1]]
                 target_codes = commons.slice_segments(

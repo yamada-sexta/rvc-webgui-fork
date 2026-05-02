@@ -4,9 +4,6 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from infer.lib.infer_pack import commons
-
-
 class DacEncoderOutputLike(Protocol):
     quantized_representation: torch.Tensor
     audio_codes: torch.Tensor
@@ -88,12 +85,10 @@ class TransformerDacGenerator(nn.Module):
         spk_embed_dim: int,
         gin_channels: int,
         dac_latent_dim: int,
-        codec: FrozenDacCodec,
         dac_num_codebooks: int = 12,
         dac_codebook_size: int = 1024,
     ) -> None:
         super().__init__()
-        self.codec = codec
         self.phone_proj = nn.Linear(phone_channels, hidden_channels)
         self.pitch_embed = nn.Embedding(256, hidden_channels)
         self.spk_embed = nn.Embedding(spk_embed_dim, hidden_channels)
@@ -123,8 +118,7 @@ class TransformerDacGenerator(nn.Module):
         ids_slice: torch.Tensor | None = None,
         segment_frames: int | None = None,
         target_frames: int | None = None,
-        decode_from_codes: bool = False,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         x = self.phone_proj(phone) + self.pitch_embed(pitch)
         x = x + self.spk_embed(sid).unsqueeze(1)
         max_len = phone.shape[1]
@@ -152,19 +146,15 @@ class TransformerDacGenerator(nn.Module):
         ).permute(0, 2, 3, 1)
         logits = logits.masked_fill(padding_mask[:, None, None, :], 0.0)
         if ids_slice is not None and segment_frames is not None:
-            logits = commons.slice_segments(
-                logits.flatten(1, 2), ids_slice, segment_frames
-            ).reshape(
+            flat_logits = logits.flatten(1, 2)
+            segments = []
+            for batch_idx, start in enumerate(ids_slice):
+                start_int = int(start.item())
+                segments.append(flat_logits[batch_idx : batch_idx + 1, :, start_int : start_int + segment_frames])
+            logits = torch.cat(segments, dim=0).reshape(
                 logits.shape[0],
                 self.dac_num_codebooks,
                 self.dac_codebook_size,
                 segment_frames,
             )
-        self.codec.to_audio_device(logits.device)
-        if decode_from_codes:
-            audio_codes = logits.argmax(dim=2)
-            y_hat = self.codec.decode_codes(audio_codes)
-        else:
-            quantized = self.codec.logits_to_quantized(logits)
-            y_hat = self.codec.decode(quantized)
-        return y_hat, logits, phone_lengths
+        return logits, phone_lengths

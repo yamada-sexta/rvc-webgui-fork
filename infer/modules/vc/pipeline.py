@@ -6,7 +6,7 @@ from typing import Protocol, TypeAlias
 
 from configs.config import Config
 from infer.lib.infer_pack.models import SynthesizerTrnMs768NSFsid
-from infer.lib.infer_pack.v3_models import TransformerDacGenerator
+from infer.lib.infer_pack.v3_models import FrozenDacCodec, TransformerDacGenerator
 
 import gradio as gr
 from loguru import logger
@@ -127,6 +127,7 @@ class Pipeline:
         index_rate: float,
         version: str,
         protect: float,
+        dac_codec: FrozenDacCodec | None = None,
     ) -> np.ndarray:  # ,file_index,file_big_npy
         if version not in {"v2", "v3"}:
             raise ValueError("Only v2/v3 models with f0 are supported.")
@@ -208,9 +209,12 @@ class Pipeline:
             if version == "v3":
                 if not isinstance(net_g, TransformerDacGenerator):
                     raise ValueError("V3 inference requires TransformerDacGenerator.")
+                if dac_codec is None:
+                    raise ValueError("V3 inference requires a frozen DAC codec.")
                 if pitch is None or pitchf is None:
                     raise ValueError("V3 inference requires pitch inputs.")
-                y_hat, _, _ = net_g(
+                dac_codec.to_audio_device(feats.device)
+                dac_logits, _ = net_g(
                     feats,
                     p_len,
                     pitch,
@@ -220,9 +224,10 @@ class Pipeline:
                     sid,
                     None,
                     None,
-                    max(1, audio.shape[0] // net_g.codec.hop_length),
-                    True,
+                    max(1, audio.shape[0] // dac_codec.hop_length),
                 )
+                audio_codes = dac_logits.argmax(dim=2)
+                y_hat = dac_codec.decode_codes(audio_codes)
                 audio1 = y_hat[0, 0].data.cpu().float().numpy()
             else:
                 if not isinstance(net_g, SynthesizerTrnMs768NSFsid):
@@ -265,6 +270,7 @@ class Pipeline:
         version: str,
         protect: float,
         f0_file: NamedFile | None = None,
+        dac_codec: FrozenDacCodec | None = None,
         progress=gr.Progress(),
     ) -> np.ndarray:
         progress(0.01, desc="Initializing...")  # Initial progress
@@ -365,6 +371,7 @@ class Pipeline:
                         index_rate,
                         version,
                         protect,
+                        dac_codec,
                     ),
                     self.t_pad_tgt,
                 )
@@ -391,6 +398,7 @@ class Pipeline:
                     index_rate,
                     version,
                     protect,
+                    dac_codec,
                 ),
                 self.t_pad_tgt,
             )
