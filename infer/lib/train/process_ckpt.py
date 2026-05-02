@@ -13,10 +13,10 @@ from i18n.i18n import I18nAuto
 i18n = I18nAuto()
 
 type WeightMap = dict[str, torch.Tensor]
-type CheckpointValue = WeightMap | list[object] | str | int
+type CheckpointValue = WeightMap | list[object] | dict[str, object] | str | int
 type CheckpointDict = OrderedDict[str, CheckpointValue]
 type SampleRate = Literal["32k", "48k"]
-type ModelVersion = Literal["v2"]
+type ModelVersion = Literal["v2", "v3"]
 
 
 class HParamsData(Protocol):
@@ -40,6 +40,10 @@ class HParamsModel(Protocol):
     upsample_kernel_sizes: Sequence[int]
     spk_embed_dim: int
     gin_channels: int
+    dac_model_type: str
+    dac_latent_dim: int
+    transformer_layers: int
+    transformer_ffn_channels: int
 
 
 class SaveHParams(Protocol):
@@ -56,8 +60,8 @@ def savee(
     version: ModelVersion,
     hps: SaveHParams,
 ) -> str:
-    if int(if_f0) != 1 or version != "v2":
-        return "Only v2 models with f0 are supported."
+    if int(if_f0) != 1 or version not in {"v2", "v3"}:
+        return "Only v2/v3 models with f0 are supported."
     try:
         weights: WeightMap = {}
         for key in ckpt.keys():
@@ -66,30 +70,44 @@ def savee(
             weights[key] = ckpt[key].half()
         opt: CheckpointDict = OrderedDict()
         opt["weight"] = weights
-        opt["config"] = [
-            hps.data.filter_length // 2 + 1,
-            32,
-            hps.model.inter_channels,
-            hps.model.hidden_channels,
-            hps.model.filter_channels,
-            hps.model.n_heads,
-            hps.model.n_layers,
-            hps.model.kernel_size,
-            hps.model.p_dropout,
-            hps.model.resblock,
-            hps.model.resblock_kernel_sizes,
-            hps.model.resblock_dilation_sizes,
-            hps.model.upsample_rates,
-            hps.model.upsample_initial_channel,
-            hps.model.upsample_kernel_sizes,
-            hps.model.spk_embed_dim,
-            hps.model.gin_channels,
-            hps.data.sampling_rate,
-        ]
-        opt["info"] = "%sepoch" % epoch
+        if version == "v3":
+            opt["config"] = {
+                "architecture": "TransformerDacGenerator",
+                "phone_channels": 768,
+                "hidden_channels": hps.model.hidden_channels,
+                "n_heads": hps.model.n_heads,
+                "dac_model_type": hps.model.dac_model_type,
+                "dac_latent_dim": hps.model.dac_latent_dim,
+                "transformer_layers": hps.model.transformer_layers,
+                "transformer_ffn_channels": hps.model.transformer_ffn_channels,
+                "spk_embed_dim": hps.model.spk_embed_dim,
+                "sampling_rate": hps.data.sampling_rate,
+            }
+        else:
+            opt["config"] = [
+                hps.data.filter_length // 2 + 1,
+                32,
+                hps.model.inter_channels,
+                hps.model.hidden_channels,
+                hps.model.filter_channels,
+                hps.model.n_heads,
+                hps.model.n_layers,
+                hps.model.kernel_size,
+                hps.model.p_dropout,
+                hps.model.resblock,
+                hps.model.resblock_kernel_sizes,
+                hps.model.resblock_dilation_sizes,
+                hps.model.upsample_rates,
+                hps.model.upsample_initial_channel,
+                hps.model.upsample_kernel_sizes,
+                hps.model.spk_embed_dim,
+                hps.model.gin_channels,
+                hps.data.sampling_rate,
+            ]
+        opt["info"] = f"{epoch}epoch"
         opt["sr"] = sr
         opt["f0"] = 1
-        opt["version"] = "v2"
+        opt["version"] = version
         torch.save(opt, Path("assets/weights") / f"{name}.pth")
         return "Success."
     except:
@@ -100,13 +118,10 @@ def show_info(path: Path | str) -> str:
     try:
         a = torch.load(path, map_location="cpu", weights_only=False)
         return (
-            "Model info:%s\nSample rate:%s\nDoes the model use pitch guidance:%s\nVersion:%s"
-            % (
-                a.get("info", "None"),
-                a.get("sr", "None"),
-                a.get("f0", "None"),
-                a.get("version", "None"),
-            )
+            f"Model info:{a.get('info', 'None')}\n"
+            f"Sample rate:{a.get('sr', 'None')}\n"
+            f"Does the model use pitch guidance:{a.get('f0', 'None')}\n"
+            f"Version:{a.get('version', 'None')}"
         )
     except:
         return traceback.format_exc()

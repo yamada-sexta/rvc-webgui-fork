@@ -4,7 +4,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 SampleRateName: TypeAlias = Literal["32k", "48k"]
-ModelVersion: TypeAlias = Literal["v2"]
+ModelVersion: TypeAlias = Literal["v2", "v3"]
 LogEventName: TypeAlias = Literal[
     "feature_args",
     "feature_empty",
@@ -56,6 +56,7 @@ class TrainSection(BaseModel):
     init_lr_ratio: float
     warmup_epochs: int
     c_mel: float
+    c_dac: float = 1.0
     c_kl: float
 
 
@@ -92,6 +93,10 @@ class ModelSection(BaseModel):
     use_spectral_norm: bool
     gin_channels: int
     spk_embed_dim: int
+    dac_model_type: str = "descript/dac_16khz"
+    dac_latent_dim: int = 1024
+    transformer_layers: int = 6
+    transformer_ffn_channels: int = 768
 
 
 class TrainingConfig(BaseModel):

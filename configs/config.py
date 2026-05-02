@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import shutil
+from pathlib import Path
 from multiprocessing import cpu_count
 from functools import wraps
 from typing import Literal, TypeAlias, TypeVar, cast
@@ -13,11 +14,15 @@ from lib.accelerate_utils import get_accelerator, use_half_precision
 from lib.json_validation import TrainingConfig
 
 
-VersionConfigPath: TypeAlias = Literal["v2/48k.json", "v2/32k.json"]
+VersionConfigPath: TypeAlias = Literal[
+    "v2/48k.json", "v2/32k.json", "v3/48k.json", "v3/32k.json"
+]
 
 version_config_list: list[VersionConfigPath] = [
     "v2/48k.json",
     "v2/32k.json",
+    "v3/48k.json",
+    "v3/32k.json",
 ]
 
 T = TypeVar("T")
@@ -105,11 +110,14 @@ class Config:
     def load_config_json() -> dict[str, VersionConfig]:
         d: dict[str, VersionConfig] = {}
         for config_file in version_config_list:
-            p = f"configs/inuse/{config_file}"
-            if not os.path.exists(p):
-                shutil.copy(f"configs/{config_file}", p)
-            with open(f"configs/inuse/{config_file}", "r") as f:
-                d[config_file] = TrainingConfig.model_validate(json.load(f))
+            source_path = Path("configs") / config_file
+            inuse_path = Path("configs") / "inuse" / config_file
+            inuse_path.parent.mkdir(parents=True, exist_ok=True)
+            if not inuse_path.exists():
+                shutil.copy(source_path, inuse_path)
+            d[config_file] = TrainingConfig.model_validate_json(
+                inuse_path.read_text(encoding="utf-8")
+            )
         return d
 
     @staticmethod

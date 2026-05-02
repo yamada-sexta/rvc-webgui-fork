@@ -33,6 +33,7 @@ dependencies = [
     # "torchvision==0.22.0",
     "torchcrepe>=0.0.24",
     "torchfcpe>=0.0.4",
+    "transformers>=4.44.0",
     "tornado>=6.1",
     "tqdm>=4.63.1",
     "typed-argument-parser>=1.12.0",

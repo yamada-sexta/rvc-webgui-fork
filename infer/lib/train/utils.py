@@ -465,6 +465,7 @@ class TrainHParams:
     init_lr_ratio: float
     warmup_epochs: int
     c_mel: float
+    c_dac: float
     c_kl: float
 
 
@@ -499,6 +500,10 @@ class ModelHParams:
     use_spectral_norm: bool
     gin_channels: int
     spk_embed_dim: int
+    dac_model_type: str = "descript/dac_16khz"
+    dac_latent_dim: int = 1024
+    transformer_layers: int = 6
+    transformer_ffn_channels: int = 768
 
 
 @dataclass(frozen=True)
@@ -539,6 +544,7 @@ class HParams:
             init_lr_ratio=config.train.init_lr_ratio,
             warmup_epochs=config.train.warmup_epochs,
             c_mel=config.train.c_mel,
+            c_dac=config.train.c_dac,
             c_kl=config.train.c_kl,
         )
         if runtime.batch_size is not None:
@@ -581,6 +587,10 @@ class HParams:
                 use_spectral_norm=config.model.use_spectral_norm,
                 gin_channels=config.model.gin_channels,
                 spk_embed_dim=config.model.spk_embed_dim,
+                dac_model_type=config.model.dac_model_type,
+                dac_latent_dim=config.model.dac_latent_dim,
+                transformer_layers=config.model.transformer_layers,
+                transformer_ffn_channels=config.model.transformer_ffn_channels,
             ),
             model_dir=runtime.model_dir or Path("."),
             experiment_dir=runtime.experiment_dir or Path("."),

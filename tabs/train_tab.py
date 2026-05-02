@@ -186,6 +186,7 @@ def extract_f0_feature(
     f0method: PitchExtractionMethod,
     n_p: int,
     exp_dir: str,
+    model_version: ModelVersion = MODEL_VERSION,
     progress: gr.Progress = gr.Progress(),
 ) -> Generator[str, None, None]:
     log_dir = pathlib.Path(shared.now_dir) / "logs" / exp_dir
@@ -222,7 +223,7 @@ def extract_f0_feature(
         shared.config.python_cmd,
         "infer/modules/train/extract_feature_print.py",
         str(log_dir),
-        MODEL_VERSION,
+        model_version,
     ]
     logger.info(f"Execute: {shlex.join(cmd)}")
     p = subprocess.Popen(cmd, cwd=shared.now_dir)
@@ -243,41 +244,26 @@ def extract_f0_feature(
 
 
 def get_pretrained_models(path_str: str, f0_str: str, sr2: SampleRate) -> tuple[str, str]:
-    if_pretrained_generator_exist = os.access(
-        "assets/pretrained%s/%sG%s.pth" % (path_str, f0_str, sr2), os.F_OK
-    )
-    if_pretrained_discriminator_exist = os.access(
-        "assets/pretrained%s/%sD%s.pth" % (path_str, f0_str, sr2), os.F_OK
-    )
-    if not if_pretrained_generator_exist:
-        logger.warning(
-            f"assets/pretrained{path_str}/{f0_str}G{sr2}.pth does not exist, so the pretrained generator will not be used"
-        )
-    if not if_pretrained_discriminator_exist:
-        logger.warning(
-            f"assets/pretrained{path_str}/{f0_str}D{sr2}.pth does not exist, so the pretrained discriminator will not be used"
-        )
-    return (
-        (
-            "assets/pretrained%s/%sG%s.pth" % (path_str, f0_str, sr2)
-            if if_pretrained_generator_exist
-            else ""
-        ),
-        (
-            "assets/pretrained%s/%sD%s.pth" % (path_str, f0_str, sr2)
-            if if_pretrained_discriminator_exist
-            else ""
-        ),
-    )
+    pretrained_dir = pathlib.Path("assets") / f"pretrained{path_str}"
+    generator_path = pretrained_dir / f"{f0_str}G{sr2}.pth"
+    discriminator_path = pretrained_dir / f"{f0_str}D{sr2}.pth"
+    if not generator_path.exists():
+        raise FileNotFoundError(generator_path)
+    if not discriminator_path.exists():
+        raise FileNotFoundError(discriminator_path)
+    return str(generator_path), str(discriminator_path)
 
 
-def change_sr2(sr2: SampleRate) -> tuple[str, str]:
+def change_sr2(sr2: SampleRate, model_version: ModelVersion = MODEL_VERSION) -> tuple[str, str]:
+    if model_version == "v3":
+        return "", ""
     return get_pretrained_models("_v2", "f0", sr2)
 
 
 def click_train(
     exp_dir1: str,
     sr2: SampleRate,
+    model_version: ModelVersion,
     spk_id5: int,
     save_epoch10: int,
     total_epoch11: int,
@@ -308,10 +294,10 @@ def click_train(
         )
         return
     names = (
-        {name.split(".")[0] for name in os.listdir(gt_wavs_dir)}
-        & {name.split(".")[0] for name in os.listdir(feature_dir)}
-        & {name.split(".")[0] for name in os.listdir(f0_dir)}
-        & {name.split(".")[0] for name in os.listdir(f0nsf_dir)}
+        {path.stem for path in gt_wavs_dir.iterdir()}
+        & {path.stem for path in feature_dir.iterdir()}
+        & {path.name.split(".")[0] for path in f0_dir.iterdir()}
+        & {path.name.split(".")[0] for path in f0nsf_dir.iterdir()}
     )
     if not names:
         yield (
@@ -321,53 +307,39 @@ def click_train(
         return
     opt = []
     for name in names:
-        opt.append(
-            "%s/%s.wav|%s/%s.npy|%s/%s.wav.npy|%s/%s.wav.npy|%s"
-            % (
-                str(gt_wavs_dir).replace("\\", "\\\\"),
-                name,
-                str(feature_dir).replace("\\", "\\\\"),
-                name,
-                str(f0_dir).replace("\\", "\\\\"),
-                name,
-                str(f0nsf_dir).replace("\\", "\\\\"),
-                name,
-                spk_id5,
-            )
-        )
+        wav_path = gt_wavs_dir / f"{name}.wav"
+        feature_path = feature_dir / f"{name}.npy"
+        f0_path = f0_dir / f"{name}.wav.npy"
+        f0nsf_path = f0nsf_dir / f"{name}.wav.npy"
+        opt.append(f"{wav_path}|{feature_path}|{f0_path}|{f0nsf_path}|{spk_id5}")
     for _ in range(2):
+        mute_dir = pathlib.Path(shared.now_dir) / "logs" / "mute"
         opt.append(
-            "%s/logs/mute/0_gt_wavs/mute%s.wav|%s/logs/mute/3_feature768/mute.npy|%s/logs/mute/2a_f0/mute.wav.npy|%s/logs/mute/2b-f0nsf/mute.wav.npy|%s"
-            % (
-                shared.now_dir,
-                sr2,
-                shared.now_dir,
-                shared.now_dir,
-                shared.now_dir,
-                spk_id5,
-            )
+            f"{mute_dir / '0_gt_wavs' / f'mute{sr2}.wav'}|"
+            f"{mute_dir / '3_feature768' / 'mute.npy'}|"
+            f"{mute_dir / '2a_f0' / 'mute.wav.npy'}|"
+            f"{mute_dir / '2b-f0nsf' / 'mute.wav.npy'}|{spk_id5}"
         )
     shuffle(opt)
-    with open(exp_dir / "filelist.txt", "w") as f:
-        f.write("\n".join(opt))
+    (exp_dir / "filelist.txt").write_text("\n".join(opt), encoding="utf-8")
     logger.debug("Write filelist done")
     logger.info("Training device is managed by Hugging Face Accelerate")
+    if model_version == "v3" and (pretrained_G14 or pretrained_D15):
+        raise ValueError("V3 has no base model. Clear pretrained G/D paths before training.")
     if pretrained_G14 == "":
         logger.info("No pretrained Generator")
     if pretrained_D15 == "":
         logger.info("No pretrained Discriminator")
-    config_path = "v2/%s.json" % sr2
+    config_path = f"{model_version}/{sr2}.json"
     config_save_path = exp_dir / "config.json"
     if not config_save_path.exists():
-        with open(config_save_path, "w", encoding="utf-8") as f:
-            json.dump(
-                shared.config.json_config[config_path].model_dump(mode="json"),
-                f,
-                ensure_ascii=False,
-                indent=4,
-                sort_keys=True,
-            )
-            f.write("\n")
+        config_payload = json.dumps(
+            shared.config.json_config[config_path].model_dump(mode="json"),
+            ensure_ascii=False,
+            indent=4,
+            sort_keys=True,
+        )
+        config_save_path.write_text(f"{config_payload}\n", encoding="utf-8")
     cmd = [
         shared.config.python_cmd,
         "infer/modules/train/train.py",
@@ -388,7 +360,7 @@ def click_train(
         "-sw",
         str(1 if if_save_every_weights18 == i18n("Yes") else 0),
         "-v",
-        MODEL_VERSION,
+        model_version,
     ]
     if pretrained_G14 != "":
         cmd.extend(["-pg", pretrained_G14])
@@ -420,15 +392,18 @@ def click_train(
 
 
 def train_index(
-    exp_dir1: str, progress: gr.Progress = gr.Progress()
+    exp_dir1: str,
+    model_version: ModelVersion = MODEL_VERSION,
+    progress: gr.Progress = gr.Progress(),
 ) -> Generator[str, None, None]:
-    exp_dir = "logs/%s" % (exp_dir1)
-    os.makedirs(exp_dir, exist_ok=True)
-    feature_dir = "%s/3_feature768" % (exp_dir)
-    if not os.path.exists(feature_dir):
+    exp_dir = pathlib.Path("logs") / exp_dir1
+    exp_dir.mkdir(parents=True, exist_ok=True)
+    feature_dir = exp_dir / "3_feature768"
+    if not feature_dir.exists():
         yield "Please perform feature extraction first!"
         return
-    listdir_res = list(os.listdir(feature_dir))
+    feature_paths = sorted(feature_dir.iterdir())
+    listdir_res = [path.name for path in feature_paths]
     if len(listdir_res) == 0:
         yield "Please perform feature extraction first!"
         return
@@ -436,8 +411,8 @@ def train_index(
     progress(0.05, desc="Loading features...")  # Initial progress update
     infos = []
     npys = []
-    for name in sorted(listdir_res):
-        phone = np.load("%s/%s" % (feature_dir, name))
+    for path in feature_paths:
+        phone = np.load(path)
         npys.append(phone)
     big_npy = np.concatenate(npys, 0)
     big_npy_idx = np.arange(big_npy.shape[0])
@@ -445,7 +420,7 @@ def train_index(
     big_npy = big_npy[big_npy_idx]
     if big_npy.shape[0] > 2e5:
         infos.append(
-            "Trying to perform KMeans on %s samples to 10k centers." % big_npy.shape[0]
+            f"Trying to perform KMeans on {big_npy.shape[0]} samples to 10k centers."
         )
         # yield "\n".join(infos)
         progress(0.2, desc="Performing KMeans...")  # Progress update for KMeans
@@ -467,60 +442,37 @@ def train_index(
             infos.append(info)
             yield "\n".join(infos)
 
-    np.save("%s/total_fea.npy" % exp_dir, big_npy)
+    np.save(exp_dir / "total_fea.npy", big_npy)
     n_ivf = min(int(16 * np.sqrt(big_npy.shape[0])), big_npy.shape[0] // 39)
-    infos.append("%s,%s" % (big_npy.shape, n_ivf))
+    infos.append(f"{big_npy.shape},{n_ivf}")
     # yield "\n".join(infos)
     progress(0.5, desc="Training FAISS index...")  # Progress update for training
-    index = faiss.index_factory(768, "IVF%s,Flat" % n_ivf)
+    index = faiss.index_factory(768, f"IVF{n_ivf},Flat")
     infos.append("training")
     # yield "\n".join(infos)
     index_ivf = faiss.extract_index_ivf(index)  #
     index_ivf.nprobe = 1
     index.train(big_npy)
-    faiss.write_index(
-        index,
-        "%s/trained_IVF%s_Flat_nprobe_%s_%s_%s.index"
-        % (exp_dir, n_ivf, index_ivf.nprobe, exp_dir1, MODEL_VERSION),
-    )
+    trained_index_path = exp_dir / f"trained_IVF{n_ivf}_Flat_nprobe_{index_ivf.nprobe}_{exp_dir1}_{model_version}.index"
+    added_index_path = exp_dir / f"added_IVF{n_ivf}_Flat_nprobe_{index_ivf.nprobe}_{exp_dir1}_{model_version}.index"
+    faiss.write_index(index, str(trained_index_path))
     progress(0.7, desc="Adding vectors to index...")
     infos.append("Adding vectors to index...")
     # yield "\n".join(infos)
     batch_size_add = 8192
     for i in range(0, big_npy.shape[0], batch_size_add):
         index.add(big_npy[i : i + batch_size_add])
-    faiss.write_index(
-        index,
-        "%s/added_IVF%s_Flat_nprobe_%s_%s_%s.index"
-        % (exp_dir, n_ivf, index_ivf.nprobe, exp_dir1, MODEL_VERSION),
-    )
+    faiss.write_index(index, str(added_index_path))
     infos.append(
-        "Successfully built index: added_IVF%s_Flat_nprobe_%s_%s_%s.index"  # Original: "Successfully built index added_IVF%s_Flat_nprobe_%s_%s_%s.index"
-        % (n_ivf, index_ivf.nprobe, exp_dir1, MODEL_VERSION)
+        f"Successfully built index: {added_index_path.name}"
     )
     try:
         link = os.link if platform.system() == "Windows" else os.symlink
-        link(
-            "%s/added_IVF%s_Flat_nprobe_%s_%s_%s.index"
-            % (exp_dir, n_ivf, index_ivf.nprobe, exp_dir1, MODEL_VERSION),
-            "%s/%s_IVF%s_Flat_nprobe_%s_%s_%s.index"
-            % (
-                shared.outside_index_root,
-                exp_dir1,
-                n_ivf,
-                index_ivf.nprobe,
-                exp_dir1,
-                MODEL_VERSION,
-            ),
-        )
-        infos.append(
-            "Linked index to external directory: %s" % (shared.outside_index_root)
-        )  # Original: "Linked index to external - %s"
+        outside_index_path = pathlib.Path(shared.outside_index_root) / f"{exp_dir1}_IVF{n_ivf}_Flat_nprobe_{index_ivf.nprobe}_{exp_dir1}_{model_version}.index"
+        link(added_index_path, outside_index_path)
+        infos.append(f"Linked index to external directory: {shared.outside_index_root}")
     except:
-        infos.append(
-            "Failed to link index to external directory: %s"
-            % (shared.outside_index_root)
-        )  # Original: "Failed to link index to external - %s"
+        infos.append(f"Failed to link index to external directory: {shared.outside_index_root}")
     progress(1.0, desc="Indexing complete!")  # Final progress update
     yield "\n".join(infos)
 
@@ -528,6 +480,7 @@ def train_index(
 def one_click_training(
     exp_dir1: str,
     sr2: SampleRate,
+    model_version: ModelVersion,
     trainset_dir4: str,
     spk_id5: int,
     np7: int,
@@ -555,6 +508,7 @@ def one_click_training(
         f0method8,
         np7,
         exp_dir1,
+        model_version,
     ):
         if not is_skip_update(update):
             final_sections.append(str(update))
@@ -564,6 +518,7 @@ def one_click_training(
     for update in click_train(
         exp_dir1,
         sr2,
+        model_version,
         spk_id5,
         save_epoch10,
         total_epoch11,
@@ -581,7 +536,7 @@ def one_click_training(
 
     # step3b: Train index
     progress(0.0, desc=i18n("Training index..."))
-    for update in train_index(exp_dir1):
+    for update in train_index(exp_dir1, model_version):
         final_sections.append(update)
     final_sections.append(i18n("Full process completed!"))
     yield "\n\n".join(section for section in final_sections if section).strip()
@@ -602,6 +557,12 @@ def create_train_tab() -> None:
                     label=i18n("Target Sample Rate"),
                     choices=["32k", "48k"],
                     value="48k",
+                    interactive=True,
+                )
+                model_version = gr.Radio(
+                    label=i18n("Model architecture version:"),
+                    choices=["v2", "v3"],
+                    value="v2",
                     interactive=True,
                 )
                 cpu_count = gr.Slider(
@@ -669,6 +630,7 @@ def create_train_tab() -> None:
                             f0method8,
                             cpu_count,
                             experiment_name,
+                            model_version,
                         ],
                         [info2],
                         api_name="train_extract_f0_feature",
@@ -725,7 +687,12 @@ def create_train_tab() -> None:
                 )
                 target_sr.change(
                     change_sr2,
-                    [target_sr],
+                    [target_sr, model_version],
+                    [pretrained_G14, pretrained_D15],
+                )
+                model_version.change(
+                    change_sr2,
+                    [target_sr, model_version],
                     [pretrained_G14, pretrained_D15],
                 )
                 train_btn = gr.Button(i18n("Train"), variant="primary")
@@ -738,6 +705,7 @@ def create_train_tab() -> None:
                     [
                         experiment_name,
                         target_sr,
+                        model_version,
                         spk_id,
                         save_epoch,
                         total_epoch,
@@ -750,12 +718,13 @@ def create_train_tab() -> None:
                     training_info,
                     api_name="train_start",
                 )
-                index_btn.click(train_index, [experiment_name], training_info)
+                index_btn.click(train_index, [experiment_name, model_version], training_info)
                 one_click_btn.click(
                     one_click_training,
                     [
                         experiment_name,
                         target_sr,
+                        model_version,
                         audio_data_root,
                         spk_id,
                         cpu_count,

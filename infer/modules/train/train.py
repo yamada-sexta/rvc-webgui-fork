@@ -2,6 +2,7 @@ import os
 import sys
 from contextlib import nullcontext
 from pathlib import Path
+from typing import Any, cast
 
 now_dir = Path.cwd()
 sys.path.append(str(now_dir))
@@ -14,6 +15,7 @@ from lib.accelerate_utils import get_accelerator, use_half_precision
 
 hps = utils.get_hparams()
 import torch
+from torch import nn
 
 torch.backends.cudnn.deterministic = False
 torch.backends.cudnn.benchmark = False
@@ -31,8 +33,8 @@ from infer.lib.train.data_utils import (
     TextAudioLoaderMultiNSFsid,
 )
 
-if hps.version != "v2" or int(hps.if_f0) != 1:
-    raise ValueError("Training only supports v2 models with f0 enabled.")
+if hps.version not in {"v2", "v3"} or int(hps.if_f0) != 1:
+    raise ValueError("Training only supports v2/v3 models with f0 enabled.")
 
 from infer.lib.infer_pack.models import (
     MultiPeriodDiscriminatorV2 as MultiPeriodDiscriminator,
@@ -49,6 +51,102 @@ from infer.lib.train.mel_processing import mel_spectrogram_torch, spec_to_mel_to
 from infer.lib.train.process_ckpt import savee
 
 global_step = 0
+
+
+class FrozenDacCodec(nn.Module):
+    def __init__(self, sample_rate: int, model_id: str = "descript/dac_16khz") -> None:
+        super().__init__()
+        try:
+            from transformers import DacModel
+        except ImportError as exc:
+            raise RuntimeError(
+                "V3 training requires Hugging Face Transformers with DacModel support. "
+                "Install it, then rerun training."
+            ) from exc
+
+        self.sample_rate = sample_rate
+        self.codec = DacModel.from_pretrained(model_id)
+        self.codec_sample_rate = int(getattr(self.codec.config, "sampling_rate", 16000))
+        self.codec.eval()
+        for parameter in self.codec.parameters():
+            parameter.requires_grad_(False)
+
+    def _resample_for_codec(self, audio: torch.Tensor) -> torch.Tensor:
+        if self.sample_rate == self.codec_sample_rate:
+            return audio
+        target_length = max(1, round(audio.shape[-1] * self.codec_sample_rate / self.sample_rate))
+        return F.interpolate(audio, size=target_length, mode="linear", align_corners=False)
+
+    def encode(self, audio: torch.Tensor) -> torch.Tensor:
+        if audio.dim() == 2:
+            audio = audio.unsqueeze(1)
+        audio = self._resample_for_codec(audio.clamp(-1.0, 1.0))
+        outputs = cast(Any, self.codec.encode(audio))
+        return cast(torch.Tensor, outputs.quantized_representation)
+
+    def decode(self, latents: torch.Tensor) -> torch.Tensor:
+        outputs = cast(Any, self.codec.decode(latents))
+        audio = cast(torch.Tensor, outputs.audio_values)
+        if audio.dim() == 2:
+            audio = audio.unsqueeze(1)
+        return audio
+
+    def to_audio_device(self, device: torch.device) -> None:
+        if next(self.codec.parameters()).device != device:
+            self.codec.to(device)
+
+
+class TransformerDacGenerator(nn.Module):
+    def __init__(
+        self,
+        phone_channels: int,
+        hidden_channels: int,
+        filter_channels: int,
+        n_heads: int,
+        n_layers: int,
+        p_dropout: float,
+        spk_embed_dim: int,
+        gin_channels: int,
+        dac_latent_dim: int,
+        codec: FrozenDacCodec,
+    ) -> None:
+        super().__init__()
+        self.codec = codec
+        self.phone_proj = nn.Linear(phone_channels, hidden_channels)
+        self.pitch_embed = nn.Embedding(256, hidden_channels)
+        self.spk_embed = nn.Embedding(spk_embed_dim, hidden_channels)
+        layer = nn.TransformerEncoderLayer(
+            d_model=hidden_channels,
+            nhead=n_heads,
+            dim_feedforward=filter_channels,
+            dropout=float(p_dropout),
+            batch_first=True,
+            norm_first=True,
+        )
+        self.encoder = nn.TransformerEncoder(layer, num_layers=n_layers)
+        self.norm = nn.LayerNorm(hidden_channels)
+        self.proj = nn.Linear(hidden_channels, dac_latent_dim)
+
+    def forward(
+        self,
+        phone: torch.Tensor,
+        phone_lengths: torch.Tensor,
+        pitch: torch.Tensor,
+        pitchf: torch.Tensor,
+        spec: torch.Tensor,
+        spec_lengths: torch.Tensor,
+        sid: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        x = self.phone_proj(phone) + self.pitch_embed(pitch)
+        x = x + self.spk_embed(sid).unsqueeze(1)
+        max_len = phone.shape[1]
+        padding_mask = torch.arange(max_len, device=phone.device).unsqueeze(0) >= phone_lengths.unsqueeze(1)
+        x = self.encoder(x, src_key_padding_mask=padding_mask)
+        latents = self.proj(self.norm(x)).transpose(1, 2)
+        latents = latents.masked_fill(padding_mask.unsqueeze(1), 0.0)
+        self.codec.to_audio_device(latents.device)
+        y_hat = self.codec.decode(latents)
+        return y_hat, latents, phone_lengths
 
 
 class EpochRecorder:
@@ -95,9 +193,13 @@ def run(hps, training_logger):
     ).info("Preparing training setup")
     utils.check_git_hash(hps.model_dir)
     torch.manual_seed(hps.train.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(hps.train.seed)
     accelerator = get_accelerator()
     use_fp16 = use_half_precision()
     training_logger.info(f"Accelerate selected device: {accelerator.device}")
+    if hps.version == "v3" and (hps.pretrainG or hps.pretrainD):
+        raise ValueError("V3 has no base model. Do not pass pretrained G/D paths.")
 
     train_dataset = TextAudioLoaderMultiNSFsid(hps.data.training_files, hps.data)
     # It is possible that dataloader's workers are out of shared memory. Please try to raise your shared memory limit.
@@ -113,27 +215,42 @@ def run(hps, training_logger):
         persistent_workers=True,
         prefetch_factor=8,
     )
-    net_g = RVC_Model_f0(
-        hps.data.filter_length // 2 + 1,
-        hps.train.segment_size // hps.data.hop_length,
-        hps.model.inter_channels,
-        hps.model.hidden_channels,
-        hps.model.filter_channels,
-        hps.model.n_heads,
-        hps.model.n_layers,
-        hps.model.kernel_size,
-        hps.model.p_dropout,
-        hps.model.resblock,
-        hps.model.resblock_kernel_sizes,
-        hps.model.resblock_dilation_sizes,
-        hps.model.upsample_rates,
-        hps.model.upsample_initial_channel,
-        hps.model.upsample_kernel_sizes,
-        hps.model.spk_embed_dim,
-        hps.model.gin_channels,
-        is_half=use_fp16,
-        sr=hps.sample_rate,
-    )
+    if hps.version == "v3":
+        codec = FrozenDacCodec(hps.data.sampling_rate, hps.model.dac_model_type)
+        net_g = TransformerDacGenerator(
+            768,
+            hps.model.hidden_channels,
+            hps.model.transformer_ffn_channels,
+            hps.model.n_heads,
+            hps.model.transformer_layers,
+            hps.model.p_dropout,
+            hps.model.spk_embed_dim,
+            hps.model.gin_channels,
+            hps.model.dac_latent_dim,
+            codec,
+        )
+    else:
+        net_g = RVC_Model_f0(
+            hps.data.filter_length // 2 + 1,
+            hps.train.segment_size // hps.data.hop_length,
+            hps.model.inter_channels,
+            hps.model.hidden_channels,
+            hps.model.filter_channels,
+            hps.model.n_heads,
+            hps.model.n_layers,
+            hps.model.kernel_size,
+            hps.model.p_dropout,
+            hps.model.resblock,
+            hps.model.resblock_kernel_sizes,
+            hps.model.resblock_dilation_sizes,
+            hps.model.upsample_rates,
+            hps.model.upsample_initial_channel,
+            hps.model.upsample_kernel_sizes,
+            hps.model.spk_embed_dim,
+            hps.model.gin_channels,
+            is_half=use_fp16,
+            sr=hps.sample_rate,
+        )
     net_d = MultiPeriodDiscriminator(hps.model.use_spectral_norm)
     optim_g = torch.optim.AdamW(
         net_g.parameters(),
@@ -189,16 +306,22 @@ def run(hps, training_logger):
         optim_d, gamma=hps.train.lr_decay, last_epoch=epoch_str - 2
     )
 
-    net_g, net_d, optim_g, optim_d, train_loader, scheduler_g, scheduler_d = (
-        accelerator.prepare(
-            net_g,
-            net_d,
-            optim_g,
-            optim_d,
-            train_loader,
-            scheduler_g,
-            scheduler_d,
-        )
+    (
+        net_g,
+        net_d,
+        optim_g,
+        optim_d,
+        train_loader,
+        scheduler_g,
+        scheduler_d,
+    ) = accelerator.prepare(
+        net_g,
+        net_d,
+        optim_g,
+        optim_d,
+        train_loader,
+        scheduler_g,
+        scheduler_d,
     )
 
     target_total_epoch = int(hps.total_epoch)
@@ -233,7 +356,7 @@ def train_and_evaluate(
     accelerator,
     loaders,
     logger,
-    writers,
+    dac_loss,
 ):
     net_g, net_d = nets
     optim_g, optim_d = optims
@@ -267,43 +390,63 @@ def train_and_evaluate(
             wave_lengths,
             sid,
         ) = info
+        dac_latents: torch.Tensor | None = None
+        target_latents: torch.Tensor | None = None
+        y_mel: torch.Tensor | None = None
+        y_hat_mel: torch.Tensor | None = None
+        z_p: torch.Tensor | None = None
+        logs_q: torch.Tensor | None = None
+        m_p: torch.Tensor | None = None
+        logs_p: torch.Tensor | None = None
+        z_mask: torch.Tensor | None = None
 
         # Calculate
         with accelerator.autocast():
-            (
-                y_hat,
-                ids_slice,
-                x_mask,
-                z_mask,
-                (z, z_p, m_p, logs_p, m_q, logs_q),
-            ) = net_g(phone, phone_lengths, pitch, pitchf, spec, spec_lengths, sid)
-            mel = spec_to_mel_torch(
-                spec,
-                hps.data.filter_length,
-                hps.data.n_mel_channels,
-                hps.data.sampling_rate,
-                hps.data.mel_fmin,
-                hps.data.mel_fmax,
-            )
-            y_mel = commons.slice_segments(
-                mel, ids_slice, hps.train.segment_size // hps.data.hop_length
-            )
-            with nullcontext():
-                y_hat_mel = mel_spectrogram_torch(
-                    y_hat.float().squeeze(1),
+            if hps.version == "v3":
+                y_hat, dac_latents, _ = net_g(
+                    phone, phone_lengths, pitch, pitchf, spec, spec_lengths, sid
+                )
+                codec = net_g.module.codec if hasattr(net_g, "module") else net_g.codec
+                wave = codec._resample_for_codec(wave.float())
+                wave = wave[..., : y_hat.shape[-1]]
+                y_hat = y_hat[..., : wave.shape[-1]]
+                with torch.no_grad():
+                    target_latents = codec.encode(wave)
+            else:
+                (
+                    y_hat,
+                    ids_slice,
+                    x_mask,
+                    z_mask,
+                    (z, z_p, m_p, logs_p, m_q, logs_q),
+                ) = net_g(phone, phone_lengths, pitch, pitchf, spec, spec_lengths, sid)
+                wave = commons.slice_segments(
+                    wave, ids_slice * hps.data.hop_length, hps.train.segment_size
+                )  # slice
+                mel = spec_to_mel_torch(
+                    spec,
                     hps.data.filter_length,
                     hps.data.n_mel_channels,
                     hps.data.sampling_rate,
-                    hps.data.hop_length,
-                    hps.data.win_length,
                     hps.data.mel_fmin,
                     hps.data.mel_fmax,
                 )
-            if use_half_precision():
-                y_hat_mel = y_hat_mel.half()
-            wave = commons.slice_segments(
-                wave, ids_slice * hps.data.hop_length, hps.train.segment_size
-            )  # slice
+                y_mel = commons.slice_segments(
+                    mel, ids_slice, hps.train.segment_size // hps.data.hop_length
+                )
+                with nullcontext():
+                    y_hat_mel = mel_spectrogram_torch(
+                        y_hat.float().squeeze(1),
+                        hps.data.filter_length,
+                        hps.data.n_mel_channels,
+                        hps.data.sampling_rate,
+                        hps.data.hop_length,
+                        hps.data.win_length,
+                        hps.data.mel_fmin,
+                        hps.data.mel_fmax,
+                    )
+                if use_half_precision():
+                    y_hat_mel = y_hat_mel.half()
 
             # Discriminator
             y_d_hat_r, y_d_hat_g, _, _ = net_d(wave, y_hat.detach())
@@ -320,11 +463,36 @@ def train_and_evaluate(
             # Generator
             y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = net_d(wave, y_hat)
             with nullcontext():
-                loss_mel = F.l1_loss(y_mel, y_hat_mel) * hps.train.c_mel
-                loss_kl = kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * hps.train.c_kl
+                if hps.version == "v3":
+                    assert dac_latents is not None
+                    assert target_latents is not None
+                    length = min(dac_latents.shape[-1], target_latents.shape[-1])
+                    loss_recon = (
+                        F.l1_loss(
+                            dac_latents[..., :length],
+                            target_latents[..., :length],
+                        )
+                        * hps.train.c_dac
+                    )
+                    loss_mel = loss_recon
+                    recon_name = "dac"
+                    loss_kl = y_hat.new_zeros(())
+                else:
+                    assert y_mel is not None
+                    assert y_hat_mel is not None
+                    loss_recon = F.l1_loss(y_mel, y_hat_mel) * hps.train.c_mel
+                    loss_mel = loss_recon
+                    recon_name = "mel"
+                    loss_kl = kl_loss(
+                        cast(torch.Tensor, z_p),
+                        cast(torch.Tensor, logs_q),
+                        cast(torch.Tensor, m_p),
+                        cast(torch.Tensor, logs_p),
+                        cast(torch.Tensor, z_mask),
+                    ) * hps.train.c_kl
                 loss_fm = feature_loss(fmap_r, fmap_g)
                 loss_gen, losses_gen = generator_loss(y_d_hat_g)
-                loss_gen_all = loss_gen + loss_fm + loss_mel + loss_kl
+                loss_gen_all = loss_gen + loss_fm + loss_recon + loss_kl
         optim_g.zero_grad()
         accelerator.backward(loss_gen_all)
         grad_norm_g = commons.clip_grad_value_(net_g.parameters(), None)
@@ -335,7 +503,7 @@ def train_and_evaluate(
 
         if global_step % hps.train.log_interval == 0:
             lr = float(optim_g.param_groups[0]["lr"])
-            loss_mel_value = min(float(loss_mel), 75.0)
+            loss_recon_value = min(float(loss_mel), 75.0)
             loss_kl_value = min(float(loss_kl), 9.0)
             total_batches = len(train_loader)
             progress_current = ((epoch - 1) * total_batches) + batch_idx + 1
@@ -353,18 +521,19 @@ def train_and_evaluate(
                 fraction=progress_current / progress_total,
                 message=(
                     f"Epoch {epoch}/{hps.total_epoch}, batch {batch_idx + 1}/{total_batches}, "
-                    f"lr {lr:.6f}, mel loss {loss_mel_value:.3f}"
+                    f"lr {lr:.6f}, {recon_name} loss {loss_recon_value:.3f}"
                 ),
                 global_step=global_step,
                 learning_rate=lr,
                 loss_disc=round(float(loss_disc), 4),
                 loss_gen=round(float(loss_gen), 4),
                 loss_fm=round(float(loss_fm), 4),
-                loss_mel=round(loss_mel_value, 4),
+                loss_mel=round(loss_recon_value, 4),
+                loss_dac=round(loss_recon_value, 4) if hps.version == "v3" else None,
                 loss_kl=round(loss_kl_value, 4),
             ).info(
                 f"Epoch {epoch}/{hps.total_epoch} batch {batch_idx + 1}/{total_batches} "
-                f"lr={lr:.6f} loss_mel={loss_mel_value:.3f} loss_kl={loss_kl_value:.3f}"
+                f"lr={lr:.6f} loss_{recon_name}={loss_recon_value:.3f} loss_kl={loss_kl_value:.3f}"
             )
                 # image_dict = {
                 #     "slice/mel_org": utils.plot_spectrogram_to_numpy(
