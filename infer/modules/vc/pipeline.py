@@ -14,9 +14,7 @@ import gradio as gr
 from loguru import logger
 
 from time import time as ttime
-from fairseq.models.hubert.hubert import (
-    HubertModel as FairseqHubertModel,
-)  # Renamed for clarity in this example
+from lib.hubert import HubertModelWrapper
 import librosa
 import numpy as np
 import torch
@@ -118,7 +116,7 @@ class Pipeline:
 
     def vc(
         self,
-        model: FairseqHubertModel,
+        model: HubertModelWrapper,
         net_g: RVCModel,
         sid: torch.Tensor,
         audio: np.ndarray,
@@ -201,7 +199,7 @@ class Pipeline:
 
     def pipeline(
         self,
-        model: FairseqHubertModel,
+        model: HubertModelWrapper,
         net_g: RVCModel,
         sid: int,
         audio: np.ndarray,

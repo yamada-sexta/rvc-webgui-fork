@@ -1,373 +1,143 @@
-import math
-import random
-from typing import Any, Literal, overload
-
-from fairseq.checkpoint_utils import load_model_ensemble_and_task
-from fairseq.utils import index_put
-import numpy as np
 from pathlib import Path
 import torch
-import torch.nn.functional as F
+import torch.nn as nn
+from transformers import HubertModel, HubertConfig
+from safetensors.torch import save_file, load_model
+from lib.accelerate_utils import get_device
 
-
-@overload
-def pad_to_multiple(
-    x: None, multiple: int, dim: int = -1, value: int = 0
-) -> tuple[None, int]: ...
-
-
-@overload
-def pad_to_multiple(
-    x: torch.Tensor, multiple: int, dim: int = -1, value: int = 0
-) -> tuple[torch.Tensor, int]: ...
-
-
-def pad_to_multiple(
-    x: torch.Tensor | None, multiple: int, dim: int = -1, value: int = 0
-) -> tuple[torch.Tensor | None, int]:
-    # Inspired from https://github.com/lucidrains/local-attention/blob/master/local_attention/local_attention.py#L41
-    if x is None:
-        return None, 0
-    tsz = x.size(dim)
-    m = tsz / multiple
-    remainder = math.ceil(m) * multiple - tsz
-    if tsz % multiple == 0:
-        return x, 0
-    pad_offset = (0,) * (-1 - dim) * 2
-
-    return F.pad(x, (*pad_offset, 0, remainder), value=value), remainder
-
-
-def extract_features(
-    self: Any,
-    x: torch.Tensor,
-    padding_mask: torch.Tensor | None = None,
-    tgt_layer: int | None = None,
-    min_layer: int = 0,
-) -> tuple[
-    torch.Tensor, list[tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None]]
-]:
-    if padding_mask is not None:
-        x = index_put(x, padding_mask, 0)
-
-    x_conv = self.pos_conv(x.transpose(1, 2))
-    x_conv = x_conv.transpose(1, 2)
-    x = x + x_conv
-
-    if not self.layer_norm_first:
-        x = self.layer_norm(x)
-
-    # pad to the sequence length dimension
-    x, pad_length = pad_to_multiple(x, self.required_seq_len_multiple, dim=-2, value=0)
-    assert x is not None
-    if pad_length > 0 and padding_mask is None:
-        padding_mask = x.new_zeros((x.size(0), x.size(1)), dtype=torch.bool)
-        padding_mask[:, -pad_length:] = True
-    else:
-        padding_mask, _ = pad_to_multiple(
-            padding_mask, self.required_seq_len_multiple, dim=-1, value=True
-        )
-    x = F.dropout(x, p=self.dropout, training=self.training)
-
-    # B x T x C -> T x B x C
-    x = x.transpose(0, 1)
-
-    layer_results = []
-    r = None
-    for i, layer in enumerate(self.layers):
-        dropout_probability = np.random.random() if self.layerdrop > 0 else 1
-        if not self.training or (dropout_probability > self.layerdrop):
-            x, (z, lr) = layer(
-                x, self_attn_padding_mask=padding_mask, need_weights=False
-            )
-            if i >= min_layer:
-                layer_results.append((x, z, lr))
-        if i == tgt_layer:
-            r = x
-            break
-
-    if r is not None:
-        x = r
-
-    # T x B x C -> B x T x C
-    x = x.transpose(0, 1)
-
-    # undo paddding
-    if pad_length > 0:
-        x = x[:, :-pad_length]
-
-        def undo_pad(a, b, c):
-            return (
-                a[:-pad_length],
-                b[:-pad_length] if b is not None else b,
-                c[:-pad_length],
-            )
-
-        layer_results = [undo_pad(*u) for u in layer_results]
-    # assert x is not None
-    # assert padding_mask is not None
-
-    return x, layer_results
-
-
-def compute_mask_indices(
-    shape: tuple[int, int],
-    padding_mask: torch.Tensor | None,
-    mask_prob: float,
-    mask_length: int,
-    mask_type: Literal["static", "uniform", "normal"] = "static",
-    mask_other: float = 0.0,
-    min_masks: int = 0,
-    no_overlap: bool = False,
-    min_space: int = 0,
-    require_same_masks: bool = True,
-    mask_dropout: float = 0.0,
-) -> torch.Tensor:
-    """
-    Computes random mask spans for a given shape
-
-    Args:
-        shape: the the shape for which to compute masks.
-            should be of size 2 where first element is batch size and 2nd is timesteps
-        padding_mask: optional padding mask of the same size as shape, which will prevent masking padded elements
-        mask_prob: probability for each token to be chosen as start of the span to be masked. this will be multiplied by
-            number of timesteps divided by length of mask span to mask approximately this percentage of all elements.
-            however due to overlaps, the actual number will be smaller (unless no_overlap is True)
-        mask_type: how to compute mask lengths
-            static = fixed size
-            uniform = sample from uniform distribution [mask_other, mask_length*2]
-            normal = sample from normal distribution with mean mask_length and stdev mask_other. mask is min 1 element
-            poisson = sample from possion distribution with lambda = mask length
-        min_masks: minimum number of masked spans
-        no_overlap: if false, will switch to an alternative recursive algorithm that prevents spans from overlapping
-        min_space: only used if no_overlap is True, this is how many elements to keep unmasked between spans
-        require_same_masks: if true, will randomly drop out masks until same amount of masks remains in each sample
-        mask_dropout: randomly dropout this percentage of masks in each example
-    """
-
-    bsz, all_sz = shape
-    mask = torch.full((bsz, all_sz), False)
-
-    all_num_mask = int(
-        # add a random number for probabilistic rounding
-        mask_prob * all_sz / float(mask_length)
-        + torch.rand([1]).item()
-    )
-
-    all_num_mask = max(min_masks, all_num_mask)
-
-    mask_idcs: list[torch.Tensor] = []
-    for i in range(bsz):
+class HubertModelWrapper(nn.Module):
+    def __init__(self, hf_model: HubertModel):
+        super().__init__()
+        self.model = hf_model
+        
+    def extract_features(self, source: torch.Tensor, padding_mask: torch.Tensor | None = None, output_layer: int = 12, **kwargs) -> tuple[torch.Tensor, torch.Tensor | None]:
+        # fairseq padding_mask is True for padding. Transformers attention_mask is 1 for NOT padding.
+        attention_mask = None
         if padding_mask is not None:
-            sz = int(all_sz - padding_mask[i].long().sum().item())
-            num_mask = int(mask_prob * sz / float(mask_length) + np.random.rand())
-            num_mask = max(min_masks, num_mask)
+            attention_mask = (~padding_mask).long()
+            
+        outputs = self.model(
+            input_values=source,
+            attention_mask=attention_mask,
+            output_hidden_states=True,
+            return_dict=True
+        )
+        
+        # In fairseq, output features are shape (B, T, C). Transformers gives (B, T, C)
+        # Hidden states: 0 is embedding, 1 to 12 are the transformer layers.
+        # So output_layer=12 corresponds to hidden_states[12]
+        feats = outputs.hidden_states[output_layer]
+        
+        # fairseq returns (features, padding_mask) or similar tuple in RVC
+        # Let's match the original return type of (feature, padding_mask)
+        return feats, padding_mask
+        
+    def infer(self, source: torch.Tensor, padding_mask: torch.Tensor | None, output_layer: torch.Tensor | int) -> torch.Tensor:
+        if isinstance(output_layer, torch.Tensor):
+            output_layer_id = int(output_layer.item())
         else:
-            sz = all_sz
-            num_mask = all_num_mask
+            output_layer_id = int(output_layer)
+            
+        if output_layer_id not in [9, 12]:
+            raise ValueError(f"Only HuBERT output_layer=9 or 12 is supported. Got {output_layer_id}")
+            
+        logits, _ = self.extract_features(source=source, padding_mask=padding_mask, output_layer=output_layer_id)
+        return logits
 
-        if mask_type == "static":
-            lengths = [mask_length for _ in range(num_mask)]
-        elif mask_type == "uniform":
-            lengths = torch.randint(
-                int(mask_other), mask_length * 2 + 1, size=[num_mask]
-            ).tolist()
-        elif mask_type == "normal":
-            sampled_lengths = torch.normal(mask_length, mask_other, size=[num_mask])
-            lengths = [max(1, int(round(x.item()))) for x in sampled_lengths]
+def convert_fairseq_to_hf(model_path: Path, safetensors_path: Path):
+    import sys
+    import types
+    if 'fairseq' not in sys.modules:
+        sys.modules['fairseq'] = types.ModuleType('fairseq')
+        sys.modules['fairseq.data'] = types.ModuleType('fairseq.data')
+        sys.modules['fairseq.data.dictionary'] = types.ModuleType('fairseq.data.dictionary')
+        class DummyDict: pass
+        setattr(sys.modules['fairseq.data.dictionary'], 'Dictionary', DummyDict)
+        
+    ckpt = torch.load(model_path, weights_only=False)
+    fairseq_dict = ckpt['model']
+    
+    hf_config = HubertConfig()
+    hf_model = HubertModel(hf_config)
+    
+    mapping = {
+        "post_extract_proj": "feature_projection.projection",
+        "encoder.pos_conv.0": "encoder.pos_conv_embed.conv",
+        "self_attn.k_proj": "encoder.layers.*.attention.k_proj",
+        "self_attn.v_proj": "encoder.layers.*.attention.v_proj",
+        "self_attn.q_proj": "encoder.layers.*.attention.q_proj",
+        "self_attn.out_proj": "encoder.layers.*.attention.out_proj",
+        "self_attn_layer_norm": "encoder.layers.*.layer_norm",
+        "fc1": "encoder.layers.*.feed_forward.intermediate_dense",
+        "fc2": "encoder.layers.*.feed_forward.output_dense",
+        "final_layer_norm": "encoder.layers.*.final_layer_norm",
+        "encoder.layer_norm": "encoder.layer_norm",
+        "layer_norm": "feature_projection.layer_norm",
+        "w2v_model.layer_norm": "feature_projection.layer_norm",
+        "mask_emb": "masked_spec_embed",
+    }
+    
+    hf_dict = hf_model.state_dict()
+    new_dict = {}
+    
+    for name, value in fairseq_dict.items():
+        if "conv_layers" in name:
+            parts = name.split(".")
+            layer_idx = int(parts[2])
+            type_idx = int(parts[3])
+            weight_type = parts[4]
+            
+            if type_idx == 0:
+                mapped = f"feature_extractor.conv_layers.{layer_idx}.conv.{weight_type}"
+            elif type_idx == 2:
+                mapped = f"feature_extractor.conv_layers.{layer_idx}.layer_norm.{weight_type}"
+            else:
+                continue
+            new_dict[mapped] = value
         else:
-            raise Exception("unknown mask selection " + mask_type)
-
-        if sum(lengths) == 0:
-            lengths[0] = min(mask_length, sz - 1)
-
-        if no_overlap:
-            mask_idc_list: list[int] = []
-
-            def arrange(
-                s: int, e: int, length: int, keep_length: int
-            ) -> list[tuple[int, int]]:
-                span_start = int(torch.randint(low=s, high=e - length, size=[1]).item())
-                mask_idc_list.extend(span_start + i for i in range(length))
-
-                new_parts: list[tuple[int, int]] = []
-                if span_start - s - min_space >= keep_length:
-                    new_parts.append((s, span_start - min_space + 1))
-                if e - span_start - length - min_space > keep_length:
-                    new_parts.append((span_start + length + min_space, e))
-                return new_parts
-
-            parts = [(0, sz)]
-            min_length = min(lengths)
-            for length in sorted(lengths, reverse=True):
-                t = [e - s if e - s >= length + min_space else 0 for s, e in parts]
-                lens = torch.asarray(t, dtype=torch.int)
-                l_sum = torch.sum(lens)
-                if l_sum == 0:
+            for k, v in mapping.items():
+                if k in name:
+                    if "*" in v:
+                        layer_idx = name.split(k)[0].split(".")[-2]
+                        v = v.replace("*", layer_idx)
+                    
+                    weight_type = name.split(".")[-1]
+                    if weight_type == "weight_g":
+                        mapped = f"{v}.parametrizations.weight.original0"
+                    elif weight_type == "weight_v":
+                        mapped = f"{v}.parametrizations.weight.original1"
+                    elif weight_type in ["weight", "bias"]:
+                        mapped = f"{v}.{weight_type}"
+                    else:
+                        mapped = v
+                        
+                    new_dict[mapped] = value
                     break
-                probs = lens / torch.sum(lens)
-                c = int(torch.multinomial(probs.float(), len(parts)).item())
-                s, e = parts.pop(c)
-                parts.extend(arrange(s, e, length, min_length))
-            mask_idc = torch.asarray(mask_idc_list)
-        else:
-            min_len = min(lengths)
-            if sz - min_len <= num_mask:
-                min_len = sz - num_mask - 1
-            mask_idc = torch.asarray(
-                random.sample([i for i in range(sz - min_len)], num_mask)
-            )
-            mask_idc = torch.asarray(
-                [
-                    mask_idc[j] + offset
-                    for j in range(len(mask_idc))
-                    for offset in range(lengths[j])
-                ]
-            )
 
-        mask_idcs.append(torch.unique(mask_idc[mask_idc < sz]))
-
-    min_len = min([len(m) for m in mask_idcs])
-    for i, mask_idc in enumerate(mask_idcs):
-        if isinstance(mask_idc, torch.Tensor):
-            mask_idc = torch.asarray(mask_idc, dtype=torch.float)
-        if len(mask_idc) > min_len and require_same_masks:
-            keep = random.sample(range(len(mask_idc)), min_len)
-            mask_idc = torch.asarray([mask_idc[j].item() for j in keep])
-        if mask_dropout > 0:
-            num_holes = int(round(len(mask_idc) * mask_dropout))
-            keep = random.sample(range(len(mask_idc)), len(mask_idc) - num_holes)
-            mask_idc = torch.asarray([mask_idc[j].item() for j in keep])
-
-        mask[i, mask_idc.int()] = True
-
-    return mask
-
-
-def apply_mask(
-    self: Any, x: torch.Tensor, padding_mask: torch.Tensor, target_list: list[int]
-) -> tuple[torch.Tensor, torch.Tensor | None]:
-    B, T, C = x.shape
-    torch.zeros_like(x)
-    if self.mask_prob > 0:
-        mask_indices = compute_mask_indices(
-            (B, T),
-            padding_mask,
-            self.mask_prob,
-            self.mask_length,
-            self.mask_selection,
-            self.mask_other,
-            min_masks=2,
-            no_overlap=self.no_mask_overlap,
-            min_space=self.mask_min_space,
-        )
-        mask_indices = mask_indices.to(x.device)
-        x[mask_indices] = self.mask_emb
-    else:
-        mask_indices = None
-
-    if self.mask_channel_prob > 0:
-        mask_channel_indices = compute_mask_indices(
-            (B, C),
-            None,
-            self.mask_channel_prob,
-            self.mask_channel_length,
-            self.mask_channel_selection,
-            self.mask_channel_other,
-            no_overlap=self.no_mask_channel_overlap,
-            min_space=self.mask_channel_min_space,
-        )
-        mask_channel_indices = (
-            mask_channel_indices.to(x.device).unsqueeze(1).expand(-1, T, -1)
-        )
-        x[mask_channel_indices] = 0
-
-    return x, mask_indices
-
+    for k, v in new_dict.items():
+        if k in hf_dict:
+            if hf_dict[k].shape == v.shape:
+                hf_dict[k] = v
+                
+    save_file(hf_dict, safetensors_path)
 
 def get_hubert(
     model_path: Path = Path("assets/hubert/hubert_base.pt"),
-    device: torch.device = torch.device("cpu"),
-) -> torch.nn.Module:
-    models, _, _ = load_model_ensemble_and_task(
-        [model_path],
-        suffix="",
-    )
-    hubert_model = models[0]
-    hubert_model = hubert_model.to(device)
-
-    def _apply_mask(
-        x: torch.Tensor, padding_mask: torch.Tensor, target_list: list[int]
-    ):
-        return apply_mask(hubert_model, x, padding_mask, target_list)
-
-    hubert_model.apply_mask = _apply_mask
-
-    def _extract_features(
-        x,
-        padding_mask=None,
-        tgt_layer=None,
-        min_layer=0,
-    ):
-        return extract_features(
-            hubert_model.encoder,
-            x,
-            padding_mask=padding_mask,
-            tgt_layer=tgt_layer,
-            min_layer=min_layer,
-        )
-
-    hubert_model.encoder.extract_features = _extract_features
-
-    hubert_model._forward = hubert_model.forward
-
-    def hubert_extract_features(
-        self,
-        source: torch.Tensor,
-        padding_mask: torch.Tensor | None = None,
-        mask: bool = False,
-        ret_conv: bool = False,
-        output_layer: int | None = None,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        res = self._forward(
-            source,
-            padding_mask=padding_mask,
-            mask=mask,
-            features_only=True,
-            output_layer=output_layer,
-        )
-        feature = res["features"] if ret_conv else res["x"]
-        return feature, res["padding_mask"]
-
-    def _hubert_extract_features(
-        source: torch.Tensor,
-        padding_mask: torch.Tensor | None = None,
-        mask: bool = False,
-        ret_conv: bool = False,
-        output_layer: int | None = None,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        return hubert_extract_features(
-            hubert_model, source, padding_mask, mask, ret_conv, output_layer
-        )
-
-    hubert_model.extract_features = _hubert_extract_features
-
-    def infer(
-        source: torch.Tensor,
-        padding_mask: torch.Tensor | None,
-        output_layer: torch.Tensor,
-    ) -> torch.Tensor:
-        output_layer_id = int(output_layer.item())
-        if output_layer_id != 12:
-            raise ValueError("Only v2 HuBERT output_layer=12 is supported.")
-        logits = hubert_model.extract_features(
-            source=source, padding_mask=padding_mask, output_layer=output_layer_id
-        )
-        feats = logits[0]
-        return feats
-
-    hubert_model.infer = infer
-    # hubert_model.forward=infer
-    # hubert_model.forward
-
-    return hubert_model
+    device: torch.device | None = None,
+) -> HubertModelWrapper:
+    if device is None:
+        device = get_device()
+        
+    safetensors_path = model_path.with_suffix(".safetensors")
+    
+    if not safetensors_path.exists():
+        print(f"Converting HuBERT from {model_path} to {safetensors_path}...")
+        convert_fairseq_to_hf(model_path, safetensors_path)
+        
+    hf_config = HubertConfig()
+    hf_model = HubertModel(hf_config)
+    load_model(hf_model, safetensors_path)
+    
+    hf_model = hf_model.to(device)
+    wrapper = HubertModelWrapper(hf_model)
+    return wrapper.eval()

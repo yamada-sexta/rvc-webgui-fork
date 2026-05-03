@@ -29,7 +29,7 @@ exp_dir = parsed_args.exp_dir
 version = parsed_args.version
 if version not in {"v2", "v3"}:
     raise ValueError("Only v2 and v3 feature extraction is supported.")
-import fairseq
+
 import numpy as np
 import soundfile as sf
 import torch
@@ -100,16 +100,9 @@ if not model_path.exists():
     )
     exit(0)
 
-from fairseq.data.dictionary import Dictionary
-from torch.serialization import safe_globals
-
-with safe_globals([Dictionary]):
-    # torch.serialization.add_safe_globals([Dictionary])
-    models, saved_cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task(
-        [str(model_path)],
-        suffix="",
-    )
-model = accelerator.prepare(models[0])
+from lib.hubert import get_hubert
+model = get_hubert(model_path, device=device)
+model = accelerator.prepare(model)
 logger.bind(
     event="ui_progress",
     detail_event="feature_model_loaded",
@@ -139,9 +132,7 @@ else:
         message=f"Starting feature extraction 0/{len(todo)}",
         version=version,
     ).info("Starting feature extraction")
-    if saved_cfg is None:
-        raise RuntimeError("HuBERT checkpoint did not include a saved config")
-    normalize = saved_cfg.task.normalize
+    normalize = False
     for idx, file in enumerate(todo):
         try:
             if file.suffix == ".wav":

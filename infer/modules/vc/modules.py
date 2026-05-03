@@ -63,7 +63,8 @@ class VC:
         self.pipeline: Pipeline | None = None
         self.cpt: RvcCheckpoint | None = None
         self.version: str = "UNKNOWN"
-        self.hubert_model: HubertModel | None = None
+        from lib.hubert import HubertModelWrapper
+        self.hubert_model: HubertModelWrapper | None = None
         self.config: Config = config
 
     def _build_synthesizer(
@@ -203,6 +204,7 @@ class VC:
             times = [0.0, 0.0, 0.0]
             if self.hubert_model is None:
                 self.hubert_model = load_hubert(self.config)
+            assert self.hubert_model is not None
 
             audio_opt: np.ndarray = self.pipeline.pipeline(
                 model=self.hubert_model,

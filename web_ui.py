@@ -9,17 +9,7 @@ import git
 import torch
 from loguru import logger
 
-# Try to import the Dictionary class in a way compatible with different fairseq versions
-try:
-    from fairseq.data.dictionary import Dictionary as FairseqDictionary
-except ImportError:
-    try:
-        from fairseq.data import Dictionary as FairseqDictionary
-    except ImportError:
-        FairseqDictionary = None
 
-if FairseqDictionary is not None:
-    torch.serialization.add_safe_globals([FairseqDictionary])
 
 warnings.filterwarnings("ignore")
 
