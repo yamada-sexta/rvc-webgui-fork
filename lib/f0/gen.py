@@ -33,8 +33,8 @@ class FCPEModel(Protocol):
 
 
 class F0State(TypedDict):
-    rmvpe: NotRequired[RMVPE]
-    fcpe: NotRequired[FCPEModel]
+    rmvpe: NotRequired["RMVPE"]
+    fcpe: NotRequired["FCPEModel"]
 
 
 class ParselmouthPitch(Protocol):
