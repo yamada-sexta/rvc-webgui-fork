@@ -5,11 +5,14 @@ from typing import Literal
 from fairseq.checkpoint_utils import load_model_ensemble_and_task
 from fairseq.utils import index_put
 import numpy as np
+from pathlib import Path
 import torch
 import torch.nn.functional as F
 
 
-def pad_to_multiple(x, multiple, dim=-1, value=0):
+def pad_to_multiple(
+    x: torch.Tensor | None, multiple: int, dim: int = -1, value: int = 0
+):
     # Inspired from https://github.com/lucidrains/local-attention/blob/master/local_attention/local_attention.py#L41
     if x is None:
         return None, 0
@@ -25,10 +28,10 @@ def pad_to_multiple(x, multiple, dim=-1, value=0):
 
 def extract_features(
     self,
-    x,
-    padding_mask=None,
-    tgt_layer=None,
-    min_layer=0,
+    x: torch.Tensor,
+    padding_mask: torch.Tensor | None = None,
+    tgt_layer: int | None = None,
+    min_layer: int = 0,
 ):
     if padding_mask is not None:
         x = index_put(x, padding_mask, 0)
@@ -214,22 +217,20 @@ def compute_mask_indices(
             mask_idc = torch.asarray(mask_idc, dtype=torch.float)
         if len(mask_idc) > min_len and require_same_masks:
             keep = random.sample(range(len(mask_idc)), min_len)
-            mask_idc = torch.asarray(
-                [mask_idc[j].item() for j in keep]
-            )
+            mask_idc = torch.asarray([mask_idc[j].item() for j in keep])
         if mask_dropout > 0:
             num_holes = int(round(len(mask_idc) * mask_dropout))
             keep = random.sample(range(len(mask_idc)), len(mask_idc) - num_holes)
-            mask_idc = torch.asarray(
-                [mask_idc[j].item() for j in keep]
-            )
+            mask_idc = torch.asarray([mask_idc[j].item() for j in keep])
 
         mask[i, mask_idc.int()] = True
 
     return mask
 
 
-def apply_mask(self, x, padding_mask, target_list):
+def apply_mask(
+    self, x: torch.Tensor, padding_mask: torch.Tensor, target_list: list[int]
+):
     B, T, C = x.shape
     torch.zeros_like(x)
     if self.mask_prob > 0:
@@ -268,7 +269,10 @@ def apply_mask(self, x, padding_mask, target_list):
     return x, mask_indices
 
 
-def get_hubert(model_path="assets/hubert/hubert_base.pt", device=torch.device("cpu")):
+def get_hubert(
+    model_path: Path = Path("assets/hubert/hubert_base.pt"),
+    device: torch.device = torch.device("cpu"),
+):
     models, _, _ = load_model_ensemble_and_task(
         [model_path],
         suffix="",
@@ -276,7 +280,9 @@ def get_hubert(model_path="assets/hubert/hubert_base.pt", device=torch.device("c
     hubert_model = models[0]
     hubert_model = hubert_model.to(device)
 
-    def _apply_mask(x, padding_mask, target_list):
+    def _apply_mask(
+        x: torch.Tensor, padding_mask: torch.Tensor, target_list: list[int]
+    ):
         return apply_mask(hubert_model, x, padding_mask, target_list)
 
     hubert_model.apply_mask = _apply_mask
