@@ -84,7 +84,6 @@ def preprocess_dataset(
     audio_dir: str | pathlib.Path,
     exp_dir: str,
     sr: SampleRate,
-    n_p: int,
     progress: gr.Progress = gr.Progress(),
 ) -> Generator[str, None, None]:
     audio_dir_path = pathlib.Path(audio_dir)
@@ -131,11 +130,11 @@ def preprocess_dataset(
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path.write_text("")
     cmd = [
-        shared.config.python_cmd,
+        str(shared.config.python_cmd),
         str(preprocess_script),
         str(audio_dir_path),
         str(sr_hz),
-        str(n_p),
+        str(shared.config.n_cpu),
         str(log_dir),
         str(shared.config.noparallel),
         f"{shared.config.preprocess_per:.1f}",
@@ -160,7 +159,6 @@ def preprocess_meta(
     audio_dir: str | pathlib.Path,
     audio_files: list[str | pathlib.Path] | None,
     sr: SampleRate,
-    n_p: int,
     progress: gr.Progress = gr.Progress(),
 ) -> Generator[str, None, None]:
     save_dir = pathlib.Path(audio_dir) / experiment_name
@@ -176,7 +174,6 @@ def preprocess_meta(
         audio_dir=save_dir,
         exp_dir=experiment_name,
         sr=sr,
-        n_p=n_p,
         progress=progress,
     ):
         yield update
@@ -184,7 +181,6 @@ def preprocess_meta(
 
 def extract_f0_feature(
     f0method: PitchExtractionMethod,
-    n_p: int,
     exp_dir: str,
     version: ModelVersion = "v2",
     progress: gr.Progress = gr.Progress(),
@@ -204,7 +200,7 @@ def extract_f0_feature(
             shared.config.python_cmd,
             "infer/modules/train/extract/extract_f0_print.py",
             str(log_dir),
-            str(n_p),
+            str(shared.config.n_cpu),
             f0method,
         ]
     logger.info(f"Execute: {shlex.join(cmd)}")
@@ -517,14 +513,6 @@ def create_train_tab() -> None:
                     value="v2",
                     interactive=True,
                 )
-                cpu_count = gr.Slider(
-                    minimum=0,
-                    maximum=shared.config.n_cpu,
-                    step=1,
-                    label=i18n("CPU Process Count"),
-                    value=int(np.ceil(shared.config.n_cpu / 1.5)),
-                    interactive=True,
-                )
 
         with gr.Group():
             gr.Markdown(value=i18n("## Preprocess"))
@@ -557,7 +545,6 @@ def create_train_tab() -> None:
                             audio_data_root,
                             audio_files,
                             target_sr,
-                            cpu_count,
                         ],
                         [info1],
                         api_name="train_preprocess",
@@ -580,7 +567,6 @@ def create_train_tab() -> None:
                         extract_f0_feature,
                         [
                             f0method8,
-                            cpu_count,
                             experiment_name,
                             model_version,
                         ],
