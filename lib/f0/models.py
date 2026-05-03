@@ -1,8 +1,11 @@
 import torch
+from pathlib import Path
 
 
 def get_rmvpe(
-    model_path="assets/rmvpe/rmvpe.pt", device=torch.device("cpu"), is_half=False
+    model_path: Path = Path("assets/rmvpe/rmvpe.pt"),
+    device: torch.device | str = "cpu",
+    is_half: bool = False,
 ):
     from lib.f0.e2e import E2E
 
