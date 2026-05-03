@@ -82,18 +82,24 @@ class VC:
 
     def get_vc(
         self: "VC", sid: str | None, *to_return_protect: float
-    ) -> tuple[Mapping[str, object]]:
+    ) -> Mapping[str, object]:
+        logger.info(f"get_vc sid: {sid}, input protect: {to_return_protect}")
         if sid is None or sid == "":
-            logger.warning("No SID")
-            return ({"visible": True, "value": 0.5, "__type__": "update"},)
+            val = to_return_protect[0] if to_return_protect else 0.33
+            if isinstance(val, (list, tuple)):
+                val = val[0]
+            if isinstance(val, dict):
+                val = val.get("value", 0.33)
+            logger.info(f"No SID, returning protect: {val}")
+            return {"visible": True, "value": val, "__type__": "update"}
         # self.pipeline
         logger.info(f"Get sid: {sid}")
 
-        val = to_return_protect[0] if to_return_protect else 0.5
+        val = to_return_protect[0] if to_return_protect else 0.33
         if isinstance(val, (list, tuple)):
             val = val[0]
         if isinstance(val, dict):
-            val = val.get("value", 0.5)
+            val = val.get("value", 0.33)
 
         to_return_protect0 = {
             "visible": True,
@@ -118,7 +124,7 @@ class VC:
                 self.net_g = None
                 self.cpt = None
                 empty_cache()
-            return (to_return_protect0,)
+            return to_return_protect0
         person = shared.weight_root / sid
         logger.info(f"Loading: {person}")
 
@@ -151,11 +157,7 @@ class VC:
 
         self.pipeline = Pipeline(synthesizer_target_sr(self.cpt["config"]), self.config)
         # n_spk = self.cpt["config"][-3]
-        res = (
-            (to_return_protect0,)
-            # if to_return_protect
-            # else {"visible": True, "__type__": "update"}
-        )
+        res = to_return_protect0
         logger.info(f"Result {res}")
 
         return res

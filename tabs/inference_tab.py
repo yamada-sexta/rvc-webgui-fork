@@ -2,6 +2,7 @@ import gradio as gr
 
 import shared
 from lib.f0 import PITCH_METHODS, PitchMethod
+from loguru import logger
 from shared import i18n
 
 
@@ -105,6 +106,11 @@ def create_inference_tab(app: gr.Blocks) -> None:
                     value=0.33,
                     step=0.01,
                     interactive=True,
+                )
+                protect0.change(
+                    fn=lambda x: logger.info(f"Protect 0 value changed to: {x}"),
+                    inputs=[protect0],
+                    outputs=[],
                 )
             with gr.Column():
                 f0method0 = gr.Radio(
