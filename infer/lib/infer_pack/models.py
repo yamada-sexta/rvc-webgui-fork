@@ -224,6 +224,7 @@ class Generator(torch.nn.Module):
             )
 
         self.resblocks = nn.ModuleList()
+        ch: int | None = None
         for i in range(len(self.ups)):
             ch = upsample_initial_channel // (2 ** (i + 1))
             for j, (k, d) in enumerate(
@@ -231,7 +232,9 @@ class Generator(torch.nn.Module):
             ):
                 self.resblocks.append(resblock_cls(ch, k, d))
 
-        self.conv_post = Conv1d(ch, 1, 7, 1, padding=3, bias=False)  # type: ignore[unbound-name]
+        if ch is None:
+            raise ValueError("ch is None")
+        self.conv_post = Conv1d(ch, 1, 7, 1, padding=3, bias=False)
         self.ups.apply(init_weights)
 
         if gin_channels != 0:

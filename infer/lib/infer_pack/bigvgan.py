@@ -115,8 +115,7 @@ class BigVGANNSFGenerator(nn.Module):
             model_id=model_id, use_cuda_kernel=use_cuda_kernel
         )
         # type: ignore[not-callable]
-        # type: ignore[not-callable]
-        self.bigvgan.remove_weight_norm()
+        # self.bigvgan.remove_weight_norm()
         self.bigvgan.eval()
         for parameter in self.bigvgan.parameters():
             parameter.requires_grad_(False)

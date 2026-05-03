@@ -24,12 +24,12 @@ class TextAudioLoaderMultiNSFsid(torch.utils.data.Dataset):
         self.audiopaths_and_text: list[tuple[Path, Path, Path, Path, str]] = (
             load_filepaths_and_text(audiopaths_and_text)
         )
-        self.max_wav_value = hparams.max_wav_value  # type: ignore[attr-defined]
-        self.sampling_rate = hparams.sampling_rate  # type: ignore[attr-defined]
-        self.filter_length = hparams.filter_length  # type: ignore[attr-defined]
-        self.hop_length = hparams.hop_length  # type: ignore[attr-defined]
-        self.win_length = hparams.win_length  # type: ignore[attr-defined]
-        self.sampling_rate = hparams.sampling_rate  # type: ignore[attr-defined]
+        self.max_wav_value = hparams.max_wav_value
+        self.sampling_rate = hparams.sampling_rate
+        self.filter_length = hparams.filter_length
+        self.hop_length = hparams.hop_length
+        self.win_length = hparams.win_length
+        self.sampling_rate = hparams.sampling_rate
         self.min_text_len = getattr(hparams, "min_text_len", 1)
         self.max_text_len = getattr(hparams, "max_text_len", 5000)
         self._filter()
