@@ -1,7 +1,17 @@
+from __future__ import annotations
+
 from functools import lru_cache
 from math import log
 from pathlib import Path
-from typing import Any, Literal, Protocol, cast
+from typing import (
+    Any,
+    Literal,
+    Protocol,
+    cast,
+    TypedDict,
+    NotRequired,
+    TYPE_CHECKING,
+)
 import hashlib
 import warnings
 
@@ -10,6 +20,11 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy import signal
 import torch
+
+if TYPE_CHECKING:
+    import torch.nn as nn
+    from infer.lib.rmvpe import RMVPE
+
 import torchcrepe
 
 PitchMethod = Literal["pm", "harvest", "crepe", "rmvpe", "fcpe", "dio"]
@@ -22,6 +37,15 @@ ALL_PITCH_METHODS: tuple[PitchMethod, ...] = (
     "fcpe",
     "dio",
 )
+
+
+class FCPEModel(Protocol):
+    def infer(self, *args: Any, **kwargs: Any) -> Any: ...
+
+
+class F0State(TypedDict):
+    rmvpe: NotRequired[RMVPE]
+    fcpe: NotRequired[FCPEModel]
 
 
 class ParselmouthPitch(Protocol):
@@ -94,13 +118,13 @@ _harvest_cache_audio: dict[str, NDArray[np.float64]] = {}
 @jit(nopython=True)
 def post_process(
     tf0: int,
-    f0: np.ndarray,
+    f0: NDArray[np.float64],
     f0_up_key: int,
     manual_x_pad: int,
     f0_mel_min: float,
     f0_mel_max: float,
-    manual_f0: np.ndarray | None = None,
-) -> tuple[np.ndarray, np.ndarray]:
+    manual_f0: NDArray[np.float64] | None = None,
+) -> tuple[NDArray[np.int32], NDArray[np.float64]]:
     f0 = np.multiply(f0, pow(2, f0_up_key / 12))
     if manual_f0 is not None:
         delta_t = np.round(
@@ -190,7 +214,7 @@ def _cached_harvest(
 
 
 def extract_f0(
-    x: np.ndarray,
+    x: NDArray[np.floating[Any]] | torch.Tensor,
     p_len: int | None,
     f0_up_key: int,
     f0_method: PitchMethod,
@@ -202,9 +226,9 @@ def extract_f0(
     device: str,
     window: int,
     sr: int,
-    state: dict[str, Any],
-    manual_f0: np.ndarray | list[list[float]] | None = None,
-) -> tuple[np.ndarray, np.ndarray]:
+    state: F0State,
+    manual_f0: NDArray[np.floating[Any]] | list[list[float]] | None = None,
+) -> tuple[NDArray[np.int32], NDArray[np.float64]]:
     if torch.is_tensor(x):
         x = x.detach().cpu().numpy()
     audio = np.asarray(x, dtype=np.float64)
@@ -265,9 +289,7 @@ def extract_f0(
         pd = torchcrepe.filter.median(pd, 3)
         f0 = torchcrepe.filter.mean(f0, 3)
         f0[pd < 0.1] = 0
-        f0 = _interpolate_f0(
-            _resize_f0(f0[0].detach().cpu().numpy(), p_len)
-        )[0]
+        f0 = _interpolate_f0(_resize_f0(f0[0].detach().cpu().numpy(), p_len))[0]
     elif f0_method == "rmvpe":
         if "rmvpe" not in state:
             from infer.lib.rmvpe import RMVPE
@@ -324,24 +346,24 @@ class Generator:
         device: str | torch.device | int = "cpu",
         window: int = 160,
         sr: int = 16000,
-    ):
+    ) -> None:
         self.rmvpe_root = rmvpe_root
         self.is_half = is_half
         self.x_pad = x_pad
         self.device = str(device)
         self.window = window
         self.sr = sr
-        self._state: dict[str, Any] = {}
+        self._state: F0State = {}
 
     def calculate(
         self,
-        x: np.ndarray,
+        x: NDArray[np.floating[Any]] | torch.Tensor,
         p_len: int | None,
         f0_up_key: int,
         f0_method: PitchMethod,
         filter_radius: int | float | None,
-        manual_f0: np.ndarray | list[list[float]] | None = None,
-    ) -> tuple[np.ndarray, np.ndarray]:
+        manual_f0: NDArray[np.floating[Any]] | list[list[float]] | None = None,
+    ) -> tuple[NDArray[np.int32], NDArray[np.float64]]:
         return extract_f0(
             x,
             p_len,

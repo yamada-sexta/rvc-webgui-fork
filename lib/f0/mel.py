@@ -55,10 +55,10 @@ class MelSpectrogram(torch.nn.Module):
     def forward(
         self,
         audio: torch.Tensor,
-        keyshift=0,
-        speed=1,
-        center=True,
-    ):
+        keyshift: int = 0,
+        speed: int = 1,
+        center: bool = True,
+    ) -> torch.Tensor:
         factor = 2 ** (keyshift / 12)
         win_length_new = int(np.round(self.win_length * factor))
         magnitude = self.stft(audio, keyshift, speed, center)
