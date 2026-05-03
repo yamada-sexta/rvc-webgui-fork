@@ -647,7 +647,7 @@ class SynthesizerTrnMs256NSFsid(nn.Module):
         self.n_heads = n_heads
         self.n_layers = n_layers
         self.kernel_size = kernel_size
-        self.p_dropout = float(p_dropout)
+        self.p_dropout = p_dropout
         self.resblock = resblock
         self.resblock_kernel_sizes = resblock_kernel_sizes
         self.resblock_dilation_sizes = resblock_dilation_sizes
@@ -666,7 +666,7 @@ class SynthesizerTrnMs256NSFsid(nn.Module):
             n_heads,
             n_layers,
             kernel_size,
-            float(p_dropout),
+            p_dropout,
         )
         self.dec: GeneratorNSF | BigVGANNSFGenerator
         self.dec = GeneratorNSF(
