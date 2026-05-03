@@ -9,12 +9,16 @@ from tap import Tap
 from loguru import logger
 from lib.accelerate_utils import get_accelerator, use_half_precision
 
+from typing import TYPE_CHECKING
+
+from lib.json_validation import ModelVersion
+
 
 class ExtractFeatureCpuArgs(Tap):
     # Experiment directory.
     exp_dir: Path
     # Model version.
-    version: str
+    version: ModelVersion
 
     def configure(self) -> None:
         self.add_argument("exp_dir")
@@ -58,7 +62,9 @@ logger.add(
 )
 
 
-logger.bind(event="feature_args", argv=sys.argv[1:]).info("Received feature extraction args")
+logger.bind(event="feature_args", argv=sys.argv[1:]).info(
+    "Received feature extraction args"
+)
 model_path = Path("assets/hubert/hubert_base.pt")
 
 logger.info(f"Feature extraction output directory: {exp_dir}")
@@ -101,6 +107,7 @@ if not model_path.exists():
     exit(0)
 
 from lib.hubert import get_hubert
+
 model = get_hubert(model_path, device=device)
 model = accelerator.prepare(model)
 logger.bind(
