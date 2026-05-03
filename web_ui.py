@@ -1,17 +1,13 @@
-import warnings
 import logging
 
 # Set logging levels for noisy modules
-for l in ("httpx", "uvicorn", "httpcore", "urllib3", "PIL"):
+for l in ("httpx", "uvicorn", "httpcore", "urllib3"):
     logging.getLogger(l).setLevel(logging.ERROR)
 
 import git
-import torch
+
+# import torch
 from loguru import logger
-
-
-
-warnings.filterwarnings("ignore")
 
 # Now import shared after setting up logging
 import shared
