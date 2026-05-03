@@ -483,6 +483,8 @@ class DataHParams:
     mel_fmin: float
     mel_fmax: float | None
     training_files: Path | None = None
+    min_text_len: int = 1
+    max_text_len: int = 5000
 
 
 @dataclass(frozen=True)
@@ -557,6 +559,8 @@ class HParams:
             mel_fmin=config.data.mel_fmin,
             mel_fmax=config.data.mel_fmax,
             training_files=config.data.training_files,
+            min_text_len=config.data.min_text_len,
+            max_text_len=config.data.max_text_len,
         )
         if runtime.training_files is not None:
             data = replace(data, training_files=runtime.training_files)

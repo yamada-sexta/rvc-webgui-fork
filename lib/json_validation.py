@@ -71,6 +71,8 @@ class DataSection(BaseModel):
     mel_fmin: float
     mel_fmax: float | None
     training_files: Path | None = None
+    min_text_len: int = 1
+    max_text_len: int = 5000
 
 
 class ModelSection(BaseModel):
