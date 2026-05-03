@@ -9,7 +9,6 @@ from loguru import logger
 from configs.config import Config
 from lib.types import (
     RvcCheckpoint,
-    synthesizer_config_args,
     synthesizer_config_args_with_sr,
     synthesizer_target_sr,
 )
