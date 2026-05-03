@@ -164,7 +164,6 @@ class Pipeline:
             # and not isinstance(big_npy, type(None))
             # and index_rate != 0
 
-
         feats = F.interpolate(feats.permute(0, 2, 1), scale_factor=2).permute(0, 2, 1)
         if protect < 0.5 and pitch is not None and pitchf is not None:
             assert feats0 is not None

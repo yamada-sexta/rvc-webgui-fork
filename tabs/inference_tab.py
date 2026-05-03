@@ -36,7 +36,6 @@ def create_inference_tab(app: gr.Blocks) -> None:
             with gr.Column():
                 model_list = sorted(shared.names)
                 if not model_list:
-                    # If no models are found, display a Textbox with a message
                     gr.Textbox(
                         label=i18n("Model"),
                         value=i18n("No models found."),
@@ -47,14 +46,14 @@ def create_inference_tab(app: gr.Blocks) -> None:
                         label=i18n("Model"), choices=[], visible=False
                     )
                 else:
-                    # If models are found, display the Dropdown
                     model_dropdown = gr.Dropdown(
                         label=i18n("Model"), choices=model_list, visible=True
                     )
 
-                with gr.Column():
-                    refresh_btn = gr.Button(i18n("Refresh"), variant="primary")
-                with gr.TabItem(i18n("Basic")):
+                refresh_btn = gr.Button(i18n("Refresh"), variant="primary")
+
+                with gr.Group():
+                    gr.Markdown(f"### {i18n('Basic')}")
                     audio_input = gr.Audio(
                         label=i18n("Input Audio"),
                         type="numpy",
@@ -95,20 +94,14 @@ def create_inference_tab(app: gr.Blocks) -> None:
                 rms_mix_rate0 = gr.Slider(
                     minimum=0,
                     maximum=1,
-                    label=i18n(
-                        # "Fusion ratio of replacing input source volume envelope with output volume envelope, closer to 1 uses output envelope more"
-                        "RMS Mix Rate"
-                    ),
+                    label=i18n("RMS Mix Rate"),
                     value=0.25,
                     interactive=True,
                 )
                 protect0 = gr.Slider(
                     minimum=0,
                     maximum=0.5,
-                    label=i18n(
-                        # "Protect voiceless consonants and breath sounds, preventing artifacts like tearing of electronic music. Maxing out to 0.5 turns it off, lowering it increases protection but might reduce the index effect"
-                        "Protect 0 (Reduce Artifact)"
-                    ),
+                    label=i18n("Protect 0 (Reduce Artifact)"),
                     value=0.33,
                     step=0.01,
                     interactive=True,
@@ -146,7 +139,7 @@ def create_inference_tab(app: gr.Blocks) -> None:
             inputs=[
                 model_dropdown,
                 protect0,
-            ],  # Use protect0 and protect1 from Basic/Batch tab
+            ],
             outputs=[protect0],
             api_name="infer_change_voice",
         )
@@ -155,6 +148,6 @@ def create_inference_tab(app: gr.Blocks) -> None:
             inputs=[
                 model_dropdown,
                 protect0,
-            ],  # Use the components themselves to get their initial values
+            ],
             outputs=[protect0],
         )

@@ -177,6 +177,12 @@ class VC:
         f0_file = None
         sid = 0
         filter_radius = 3
+        # protect safeguard
+        try:
+            protect = float(protect)
+        except (TypeError, ValueError):
+            logger.warning(f"Invalid protect value: {protect}. Defaulting to 0.33")
+            protect = 0.33
         tgt_sr = self.tgt_sr
         if tgt_sr is None:
             return "Model target sample rate unknown. Please reload the model.", None
