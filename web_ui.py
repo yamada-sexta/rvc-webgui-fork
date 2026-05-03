@@ -1,5 +1,10 @@
 import warnings
 import logging
+
+# Set logging levels for noisy modules
+for l in ("httpx", "uvicorn", "httpcore", "urllib3", "PIL"):
+    logging.getLogger(l).setLevel(logging.ERROR)
+
 import git
 import torch
 from loguru import logger
@@ -17,10 +22,6 @@ if FairseqDictionary is not None:
     torch.serialization.add_safe_globals([FairseqDictionary])
 
 warnings.filterwarnings("ignore")
-
-# Set logging levels for noisy modules
-for l in ("httpx", "uvicorn", "httpcore", "urllib3", "PIL"):
-    logging.getLogger(l).setLevel(logging.ERROR)
 
 # Now import shared after setting up logging
 import shared
