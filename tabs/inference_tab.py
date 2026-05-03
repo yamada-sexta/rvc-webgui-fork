@@ -1,7 +1,7 @@
 import gradio as gr
 
 import shared
-from lib.f0 import PITCH_METHODS, PitchMethod
+from lib.f0.type import PITCH_METHODS, PitchMethod
 from loguru import logger
 from shared import i18n
 
@@ -23,10 +23,8 @@ def get_pitch_methods() -> list[PitchMethod]:
 
 
 def get_model_list() -> list[str]:
-    print(f"Models: {shared.names}")
+    logger.info(f"Models: {shared.names}")
     return sorted(shared.names)
-
-
 
 
 def create_inference_tab(app: gr.Blocks) -> None:
@@ -67,7 +65,7 @@ def create_inference_tab(app: gr.Blocks) -> None:
                     )
 
                     def set_autoplay(x: bool) -> dict[str, object]:
-                        print(f"Set auto play: {x}")
+                        logger.info(f"Set auto play: {x}")
                         return {"autoplay": x, "__type__": "update"}
 
                     autoplay_checkbox.input(

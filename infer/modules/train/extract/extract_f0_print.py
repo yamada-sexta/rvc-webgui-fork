@@ -12,7 +12,7 @@ sys.path.append(now_dir)
 import numpy as np
 
 from infer.lib.audio import load_audio
-from lib.f0 import Generator, PitchMethod
+from lib.f0.gen import Generator, PitchMethod
 
 
 class ExtractF0Args(Tap):
@@ -22,7 +22,6 @@ class ExtractF0Args(Tap):
     n_p: int
     # F0 extraction method.
     f0method: PitchMethod
-
 
 
 args = ExtractF0Args().parse_args()
@@ -98,9 +97,8 @@ class FeatureInput:
                         message=f"Processing pitch {idx + 1}/{len(paths)}: {Path(inp_path).name}",
                         file=inp_path,
                     ).info(f"Starting f0 for {Path(inp_path).name}")
-                    skipped = (
-                        os.path.exists(opt_path1 + ".npy")
-                        and os.path.exists(opt_path2 + ".npy")
+                    skipped = os.path.exists(opt_path1 + ".npy") and os.path.exists(
+                        opt_path2 + ".npy"
                     )
                     if not skipped:
                         audio = load_audio(inp_path, self.fs)
