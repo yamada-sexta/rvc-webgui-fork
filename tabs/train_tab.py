@@ -1,3 +1,4 @@
+import dataclasses
 import datetime
 import json
 import os
@@ -457,7 +458,7 @@ def click_train(
         config_path = f"{version19}/{sr2}.json"
         with open(config_save_path, "w", encoding="utf-8") as f:
             json.dump(
-                shared.config.json_config[config_path].model_dump(mode="json"),
+                dataclasses.asdict(shared.config.json_config[config_path]),
                 f,
                 ensure_ascii=False,
                 indent=4,

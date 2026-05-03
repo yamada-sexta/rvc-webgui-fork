@@ -10,7 +10,12 @@ from tap import Tap
 from loguru import logger
 
 from lib.accelerate_utils import get_accelerator, use_half_precision
-from lib.json_validation import TrainingConfig
+from configs.v2_config import (
+    V2DataConfig,
+    V2ModelConfig,
+    V2TrainConfig,
+    V2TrainingConfig,
+)
 
 
 VersionConfigPath: TypeAlias = Literal["v2/48k.json", "v2/32k.json"]
@@ -23,7 +28,7 @@ version_config_list: tuple[VersionConfigPath, ...] = (
 T = TypeVar("T")
 
 
-VersionConfig = TrainingConfig
+VersionConfig = V2TrainingConfig
 
 
 class ConfigArgs(Tap):
@@ -97,7 +102,12 @@ class Config:
             if not os.path.exists(p):
                 shutil.copy(f"configs/{config_file}", p)
             with open(f"configs/inuse/{config_file}", "r") as f:
-                d[config_file] = TrainingConfig.model_validate(json.load(f))
+                data_dict = json.load(f)
+                d[config_file] = V2TrainingConfig(
+                    train=V2TrainConfig(**data_dict["train"]),
+                    data=V2DataConfig(**data_dict["data"]),
+                    model=V2ModelConfig(**data_dict["model"]),
+                )
         return d
 
     @staticmethod
