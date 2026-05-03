@@ -494,67 +494,6 @@ def click_train(
 
 
 
-def one_click_training(
-    exp_dir1: str,
-    sr2: SampleRate,
-    version19: ModelVersion,
-    trainset_dir4: str,
-    spk_id5: int,
-    np7: int,
-    f0method8: PitchExtractionMethod,
-    save_epoch10: int,
-    total_epoch11: int,
-    batch_size12: int,
-    if_save_latest13: str,
-    pretrained_G14: str,
-    pretrained_D15: str,
-    if_save_every_weights18: str,
-) -> Generator[str, None, None]:
-    final_sections: list[str] = []
-
-    # step1: Process data
-    progress = gr.Progress()
-    progress(0.0, desc=shared.i18n("step1: processing data..."))
-    for update in preprocess_dataset(trainset_dir4, exp_dir1, sr2, np7):
-        if not is_skip_update(update):
-            final_sections.append(str(update))
-
-    # step2a: Extract pitch
-    progress(0.0, desc=shared.i18n("step2: extracting feature & pitch"))
-    for update in extract_f0_feature(
-        f0method8,
-        np7,
-        exp_dir1,
-        version19,
-    ):
-        if not is_skip_update(update):
-            final_sections.append(str(update))
-
-    # step3a: Train model
-    progress(0.0, desc=shared.i18n("step3a: Training model"))
-    for update in click_train(
-        exp_dir1,
-        sr2,
-        version19,
-        spk_id5,
-        save_epoch10,
-        total_epoch11,
-        batch_size12,
-        if_save_latest13,
-        pretrained_G14,
-        pretrained_D15,
-        if_save_every_weights18,
-    ):
-        if not is_skip_update(update):
-            final_sections.append(str(update))
-    final_sections.append(
-        i18n("Training finished, you can view the console training log or train.log in the experiment folder")
-    )
-
-    final_sections.append(i18n("Full process completed!"))
-    yield "\n\n".join(section for section in final_sections if section).strip()
-
-
 def create_train_tab() -> None:
 
     with gr.TabItem(i18n("Train")):
@@ -709,7 +648,6 @@ def create_train_tab() -> None:
                     [target_sr, pretrained_G14, pretrained_D15],
                 )
                 train_btn = gr.Button(i18n("Train"), variant="primary")
-                one_click_btn = gr.Button(i18n("Train Everything"), variant="primary")
 
                 training_info = gr.Textbox(label=i18n("Info"), value="", max_lines=10)
                 train_btn.click(
@@ -730,24 +668,4 @@ def create_train_tab() -> None:
                     training_info,
                     api_name="train_start",
                 )
-                one_click_btn.click(
-                    one_click_training,
-                    [
-                        experiment_name,
-                        target_sr,
-                        model_version,
-                        audio_data_root,
-                        spk_id,
-                        cpu_count,
-                        f0method8,
-                        save_epoch,
-                        total_epoch,
-                        batch_size,
-                        if_save_latest13,
-                        pretrained_G14,
-                        pretrained_D15,
-                        if_save_every_weights18,
-                    ],
-                    training_info,
-                    api_name="train_start_all",
-                )
+
