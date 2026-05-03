@@ -64,7 +64,6 @@ def singleton_class(cls: type[T]) -> type[T]:
 
 @singleton_class
 class Config:
-    use_jit: bool
     n_cpu: int
     gpu_name: str | None
     json_config: dict[str, VersionConfig]
@@ -85,7 +84,6 @@ class Config:
 
     def __init__(self):
         accelerator = get_accelerator()
-        self.use_jit: bool = False
         self.n_cpu: int = 0
         self.gpu_name: str | None = None
         self.json_config: dict[str, VersionConfig] = self.load_config_json()

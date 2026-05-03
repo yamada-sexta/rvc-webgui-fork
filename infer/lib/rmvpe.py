@@ -5,7 +5,6 @@ from typing import Literal, TypeAlias, cast, overload
 import numpy as np
 import torch
 
-from infer.lib import jit
 from lib.accelerate_utils import get_device
 
 import torch.nn as nn
@@ -563,7 +562,6 @@ class RMVPE:
         model_path: Path,
         is_half: bool,
         device: str | torch.device | None = None,
-        use_jit: bool = False,
     ) -> None:
         self.resample_kernel = {}
         self.resample_kernel = {}
@@ -575,31 +573,6 @@ class RMVPE:
         self.mel_extractor = MelSpectrogram(
             is_half, 128, 16000, 1024, 160, None, 30, 8000
         ).to(device)
-        def get_jit_model() -> torch.jit.ScriptModule:
-            jit_model_path = model_path.with_suffix("")
-            jit_model_path = jit_model_path.with_suffix(".half.jit" if is_half else ".jit")
-            reload = False
-            ckpt = None
-            if jit_model_path.exists():
-                ckpt = jit.load(jit_model_path)
-                model_device = ckpt["device"]
-                if model_device != str(self.device):
-                    reload = True
-            else:
-                reload = True
-
-            if reload:
-                ckpt = jit.rmvpe_jit_export(
-                    model_path=model_path,
-                    mode="script",
-                    inputs_path=None,  # type: ignore[bad-argument-type]
-                    save_path=jit_model_path,
-                    device=device,
-                    is_half=is_half,
-                )
-            assert ckpt is not None
-            model = torch.jit.load(BytesIO(ckpt["model"]), map_location=device)
-            return model
 
         def get_default_model() -> E2E:
             model = E2E(4, 1, (2, 2))
@@ -612,17 +585,7 @@ class RMVPE:
                 model = model.float()
             return model
 
-        if use_jit:
-            if is_half and "cpu" in str(self.device):
-                logger.warning(
-                    "Use default rmvpe model. "
-                    "Jit is not supported on the CPU for half floating point"
-                )
-                self.model = get_default_model()
-            else:
-                self.model = get_jit_model()
-        else:
-            self.model = get_default_model()
+        self.model = get_default_model()
 
         self.model = cast(nn.Module, self.model).to(device)
         cents_mapping = 20 * np.arange(360) + 1997.3794084376191

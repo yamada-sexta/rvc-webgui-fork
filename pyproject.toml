@@ -26,7 +26,6 @@ dependencies = [
     "resampy>=0.4.2",
     "scikit-learn>=1.6.1",
     "scipy>=1.15.3",
-    "sounddevice>=0.5.2",
     "soundfile>=0.12.1",
     "torch==2.7.0",
     # "torchaudio==2.7.0",

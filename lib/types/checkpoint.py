@@ -57,9 +57,6 @@ class RvcCheckpoint(TypedDict):
     version: NotRequired[RvcVersion]
 
 
-class JitRvcCheckpoint(RvcCheckpoint, total=False):
-    model: bytes
-    device: int | str | torch.device
 
 
 def synthesizer_config_args(config: SynthesizerConfig) -> SynthesizerConfigArgs:

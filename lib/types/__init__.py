@@ -1,5 +1,4 @@
 from .checkpoint import (
-    JitRvcCheckpoint,
     RvcCheckpoint,
     RvcVersion,
     SynthesizerConfig,
@@ -15,7 +14,6 @@ from .io import FileLike
 
 __all__ = [
     "FileLike",
-    "JitRvcCheckpoint",
     "RvcCheckpoint",
     "RvcVersion",
     "SynthesizerConfig",

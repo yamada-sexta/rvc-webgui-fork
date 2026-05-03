@@ -15,7 +15,6 @@
     "crossfade_length": 0.08,
     "extra_time": 2.0,
     "n_cpu": 4.0,
-    "use_jit": false,
     "use_pv": false,
     "f0method": "fcpe"
 }

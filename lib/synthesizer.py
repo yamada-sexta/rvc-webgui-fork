@@ -7,10 +7,8 @@ from infer.lib.infer_pack.models import (
     SynthesizerTrnMs768BigVGANsid,
     SynthesizerTrnMs768NSFsid,
 )
-from .jit import load_inputs, export_jit_model, save_pickle
 from .types import (
     FileLike,
-    JitRvcCheckpoint,
     RvcCheckpoint,
     synthesizer_config_args_with_sr,
 )
@@ -46,31 +44,3 @@ def load_synthesizer(
     )
 
 
-def synthesizer_jit_export(
-    model_path: str | Path,
-    mode: Literal["script", "trace"] = "script",
-    inputs_path: str | Path | None = None,
-    save_path: str | Path | None = None,
-    device: str | torch.device = torch.device("cpu"),
-    is_half: bool = False,
-):
-    model_path = Path(model_path)
-    if not save_path:
-        stem = model_path.with_suffix("")
-        save_path = stem.with_suffix(".half.jit" if is_half else ".jit")
-    else:
-        save_path = Path(save_path)
-    model, cpt = load_synthesizer(model_path, device)
-    model.forward = model.infer
-    inputs: dict[str, torch.Tensor] | None = None
-    device_str = str(device)
-    if mode == "trace":
-        if inputs_path is None:
-            raise ValueError("inputs_path is required when mode is 'trace'")
-        inputs = load_inputs(inputs_path, device_str, is_half)
-    ckpt = export_jit_model(model, mode, inputs, device, is_half)
-    jit_cpt = cast(JitRvcCheckpoint, dict(cpt))
-    jit_cpt["model"] = ckpt["model"]
-    jit_cpt["device"] = device
-    save_pickle(cast(dict[str, Any], dict(jit_cpt)), save_path)
-    return jit_cpt
