@@ -1,4 +1,3 @@
-import os
 import sys
 from contextlib import nullcontext
 from pathlib import Path
@@ -22,8 +21,6 @@ from time import time as ttime
 
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
-
-# from torch.utils.tensorboard import SummaryWriter
 
 from infer.lib.infer_pack import commons
 from infer.lib.train.data_utils import (
@@ -179,7 +176,9 @@ def run(hps, training_logger):
                 )
             )
         if hps.pretrainD != "":
-            training_logger.info(f"Loading pretrained discriminator from {hps.pretrainD}")
+            training_logger.info(
+                f"Loading pretrained discriminator from {hps.pretrainD}"
+            )
             training_logger.info(
                 net_d.load_state_dict(
                     torch.load(hps.pretrainD, map_location="cpu", weights_only=False)[
@@ -247,7 +246,9 @@ def train_and_evaluate(
     # if writers is not None:
     #     writer, writer_eval = writers
 
-    if hasattr(train_loader, "batch_sampler") and hasattr(train_loader.batch_sampler, "set_epoch"):
+    if hasattr(train_loader, "batch_sampler") and hasattr(
+        train_loader.batch_sampler, "set_epoch"
+    ):
         train_loader.batch_sampler.set_epoch(epoch)
     global global_step
 
@@ -372,23 +373,6 @@ def train_and_evaluate(
                 f"Epoch {epoch}/{hps.total_epoch} batch {batch_idx + 1}/{total_batches} "
                 f"lr={lr:.6f} loss_mel={loss_mel_value:.3f} loss_kl={loss_kl_value:.3f}"
             )
-                # image_dict = {
-                #     "slice/mel_org": utils.plot_spectrogram_to_numpy(
-                #         y_mel[0].data.cpu().numpy()
-                #     ),
-                #     "slice/mel_gen": utils.plot_spectrogram_to_numpy(
-                #         y_hat_mel[0].data.cpu().numpy()
-                #     ),
-                #     "all/mel": utils.plot_spectrogram_to_numpy(
-                #         mel[0].data.cpu().numpy()
-                #     ),
-                # }
-                # utils.summarize(
-                #     writer=writer,
-                #     global_step=global_step,
-                #     images=image_dict,
-                #     scalars=scalar_dict,
-                # )
         global_step += 1
     # /Run steps
 
@@ -437,7 +421,9 @@ def train_and_evaluate(
                 hps.version,
                 hps,
             )
-            logger.info(f"Saved intermediate checkpoint {hps.name}_e{epoch}:{saved_path}")
+            logger.info(
+                f"Saved intermediate checkpoint {hps.name}_e{epoch}:{saved_path}"
+            )
 
     logger.bind(
         event="ui_progress",
@@ -458,9 +444,9 @@ def train_and_evaluate(
         final_path = savee(
             ckpt, hps.sample_rate, hps.if_f0, hps.name, epoch, hps.version, hps
         )
-        logger.bind(event="train_finished", epoch=epoch, total_epoch=hps.total_epoch).info(
-            f"Saved final checkpoint: {final_path}"
-        )
+        logger.bind(
+            event="train_finished", epoch=epoch, total_epoch=hps.total_epoch
+        ).info(f"Saved final checkpoint: {final_path}")
         sleep(1)
         return
 

@@ -343,7 +343,7 @@ def get_hparams_from_file(config_path: Path):
     return HParams.from_config(config)
 
 
-def check_git_hash(model_dir: Path):
+def check_git_hash(model_dir: Path) -> None:
     source_dir = Path(os.path.realpath(__file__)).parent
     git_check = subprocess.run(
         ["git", "-C", str(source_dir), "rev-parse", "--show-toplevel"],

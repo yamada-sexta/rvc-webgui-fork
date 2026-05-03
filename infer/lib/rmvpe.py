@@ -1,5 +1,3 @@
-from io import BytesIO
-import os
 from pathlib import Path
 from typing import Literal, TypeAlias, cast, overload
 import numpy as np
@@ -13,6 +11,7 @@ from librosa.util import normalize, pad_center, tiny
 from scipy.signal import get_window
 
 from loguru import logger
+
 HiddenArray: TypeAlias = np.ndarray
 AudioInput: TypeAlias = torch.Tensor | np.ndarray
 
@@ -350,9 +349,7 @@ class ResDecoderBlock(nn.Module):
         for i in range(n_blocks - 1):
             self.conv2.append(ConvBlockRes(out_channels, out_channels, momentum))
 
-    def forward(
-        self, x: torch.Tensor, concat_tensor: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, concat_tensor: torch.Tensor) -> torch.Tensor:
         x = self.conv1(x)
         x = torch.cat((x, concat_tensor), dim=1)
         for i, conv2 in enumerate(self.conv2):
