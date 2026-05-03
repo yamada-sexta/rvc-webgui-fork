@@ -40,10 +40,9 @@ class TrainArgs(Tap):
     save_every_weights: Literal["0", "1"] = "0"
     # Model version.
     version: ModelVersion
-    # Whether to use f0 as an input, 1 or 0.
-    if_f0: Literal[0, 1]
-    # Whether to save only the latest G/D pth files, 1 or 0.
-    if_latest: Literal[0, 1]
+    if_f0: Literal[0, 1]  # Whether to use f0 as an input, 1 or 0.
+
+    if_latest: Literal[0, 1]  # Whether to save only the latest G/D pth files, 1 or 0.
 
     def configure(self) -> None:
         self.add_argument("-se", "--save_every_epoch")
@@ -287,7 +286,9 @@ def load_wav_to_torch(full_path: Path):
     return torch.FloatTensor(data.astype(np.float32)), sampling_rate
 
 
-def load_filepaths_and_text(filename: Path, split: str = "|") -> list[tuple[Path, Path, Path, Path, str]]:
+def load_filepaths_and_text(
+    filename: Path, split: str = "|"
+) -> list[tuple[Path, Path, Path, Path, str]]:
     try:
         with open(filename, encoding="utf-8") as f:
             lines = f.readlines()
@@ -303,7 +304,9 @@ def load_filepaths_and_text(filename: Path, split: str = "|") -> list[tuple[Path
                 f"Expected 5 pipe-separated fields (audiopath|phone|pitch|pitchf|dv) "
                 f"in {filename}, got {len(parts)}: {line.strip()!r}"
             )
-        res.append((Path(parts[0]), Path(parts[1]), Path(parts[2]), Path(parts[3]), parts[4]))
+        res.append(
+            (Path(parts[0]), Path(parts[1]), Path(parts[2]), Path(parts[3]), parts[4])
+        )
 
     return res
 
@@ -524,6 +527,7 @@ class HParams:
     if_f0: Literal[0, 1] = 1
     if_latest: Literal[0, 1] = 0
     save_every_weights: Literal["0", "1"] = "0"
+
     @classmethod
     def from_config(
         cls,
