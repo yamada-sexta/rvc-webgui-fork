@@ -42,7 +42,7 @@ RVCModel: TypeAlias = SynthesizerTrnMs768NSFsid | SynthesizerTrnMs768BigVGANsid
 
 def change_rms(
     data1: np.ndarray, sr1: int, data2: np.ndarray, sr2: int, rate: float
-):  # 1 is input audio, 2 is output audio, rate is the proportion of 2
+) -> np.ndarray:
     # print(data1.max(),data2.max())
     rms1 = librosa.feature.rms(
         y=data1, frame_length=sr1 // 2 * 2, hop_length=sr1 // 2
@@ -237,7 +237,7 @@ class Pipeline:
         version: str,
         protect: float,
         f0_file: NamedFile | None = None,
-        progress=gr.Progress(),
+        progress: gr.Progress = gr.Progress(),
     ) -> np.ndarray:
         progress(0.01, desc="Initializing...")  # Initial progress
 

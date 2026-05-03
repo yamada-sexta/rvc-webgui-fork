@@ -1,5 +1,6 @@
 import copy
 import math
+from typing import Sequence
 
 import numpy as np
 import scipy
@@ -19,6 +20,7 @@ from infer.lib.infer_pack.transforms import piecewise_rational_quadratic_transfo
 def remove_weight_norm(module: nn.Module, name: str = "weight") -> nn.Module:
     remove_parametrizations(module, name, leave_parametrized=True)
     return module
+
 
 LRELU_SLOPE = 0.1
 
@@ -133,7 +135,9 @@ class DDSConv(nn.Module):
             self.norms_1.append(LayerNorm(channels))
             self.norms_2.append(LayerNorm(channels))
 
-    def forward(self, x: torch.Tensor, x_mask: torch.Tensor, g: torch.Tensor | None = None) -> torch.Tensor:
+    def forward(
+        self, x: torch.Tensor, x_mask: torch.Tensor, g: torch.Tensor | None = None
+    ) -> torch.Tensor:
         if g is not None:
             x = x + g
         for i in range(self.n_layers):
@@ -202,7 +206,7 @@ class WN(torch.nn.Module):
 
     def forward(
         self, x: torch.Tensor, x_mask: torch.Tensor, g: torch.Tensor | None = None
-    ):
+    ) -> torch.Tensor:
         output = torch.zeros_like(x)
         n_channels_tensor = torch.IntTensor([self.hidden_channels])
 
@@ -265,7 +269,12 @@ class WN(torch.nn.Module):
 
 
 class ResBlock1(torch.nn.Module):
-    def __init__(self, channels, kernel_size=3, dilation=(1, 3, 5)):
+    def __init__(
+        self,
+        channels: int,
+        kernel_size: int = 3,
+        dilation: Sequence[int] = (1, 3, 5),
+    ) -> None:
         super(ResBlock1, self).__init__()
         self.convs1 = nn.ModuleList(
             [
@@ -340,7 +349,9 @@ class ResBlock1(torch.nn.Module):
         self.convs2.apply(init_weights)
         self.lrelu_slope = LRELU_SLOPE
 
-    def forward(self, x: torch.Tensor, x_mask: torch.Tensor | None = None) -> torch.Tensor:
+    def forward(
+        self, x: torch.Tensor, x_mask: torch.Tensor | None = None
+    ) -> torch.Tensor:
         for c1, c2 in zip(self.convs1, self.convs2):
             xt = F.leaky_relu(x, self.lrelu_slope)
             if x_mask is not None:
@@ -380,7 +391,12 @@ class ResBlock1(torch.nn.Module):
 
 
 class ResBlock2(torch.nn.Module):
-    def __init__(self, channels, kernel_size=3, dilation=(1, 3)):
+    def __init__(
+        self,
+        channels: int,
+        kernel_size: int = 3,
+        dilation: Sequence[int] = (1, 3),
+    ) -> None:
         super(ResBlock2, self).__init__()
         self.convs = nn.ModuleList(
             [
@@ -409,7 +425,9 @@ class ResBlock2(torch.nn.Module):
         self.convs.apply(init_weights)
         self.lrelu_slope = LRELU_SLOPE
 
-    def forward(self, x: torch.Tensor, x_mask: torch.Tensor | None = None) -> torch.Tensor:
+    def forward(
+        self, x: torch.Tensor, x_mask: torch.Tensor | None = None
+    ) -> torch.Tensor:
         for c in self.convs:
             xt = F.leaky_relu(x, self.lrelu_slope)
             if x_mask is not None:
@@ -472,13 +490,19 @@ class Flip(nn.Module):
 
 
 class ElementwiseAffine(nn.Module):
-    def __init__(self, channels):
+    def __init__(self, channels: int) -> None:
         super(ElementwiseAffine, self).__init__()
         self.channels = channels
         self.m = nn.Parameter(torch.zeros(channels, 1))
         self.logs = nn.Parameter(torch.zeros(channels, 1))
 
-    def forward(self, x, x_mask, reverse=False, **kwargs):
+    def forward(
+        self,
+        x: torch.Tensor,
+        x_mask: torch.Tensor,
+        reverse: bool = False,
+        # **kwargs: object,
+    ) -> tuple[torch.Tensor, torch.Tensor] | torch.Tensor:
         if not reverse:
             y = self.m + torch.exp(self.logs) * x
             y = y * x_mask
@@ -492,15 +516,15 @@ class ElementwiseAffine(nn.Module):
 class ResidualCouplingLayer(nn.Module):
     def __init__(
         self,
-        channels,
-        hidden_channels,
-        kernel_size,
-        dilation_rate,
-        n_layers,
-        p_dropout=0,
-        gin_channels=0,
-        mean_only=False,
-    ):
+        channels: int,
+        hidden_channels: int,
+        kernel_size: int,
+        dilation_rate: int,
+        n_layers: int,
+        p_dropout: float = 0,
+        gin_channels: int = 0,
+        mean_only: bool = False,
+    ) -> None:
         assert channels % 2 == 0, "channels should be divisible by 2"
         super(ResidualCouplingLayer, self).__init__()
         self.channels = channels
@@ -568,13 +592,13 @@ class ResidualCouplingLayer(nn.Module):
 class ConvFlow(nn.Module):
     def __init__(
         self,
-        in_channels,
-        filter_channels,
-        kernel_size,
-        n_layers,
-        num_bins=10,
-        tail_bound=5.0,
-    ):
+        in_channels: int,
+        filter_channels: int,
+        kernel_size: int,
+        n_layers: int,
+        num_bins: int = 10,
+        tail_bound: float = 5.0,
+    ) -> None:
         super(ConvFlow, self).__init__()
         self.in_channels = in_channels
         self.filter_channels = filter_channels

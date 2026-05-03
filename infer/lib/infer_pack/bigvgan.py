@@ -1,5 +1,6 @@
 from pathlib import Path
-from typing import Any, cast
+from typing import Sequence, cast
+import types
 
 import torch
 from torch import nn
@@ -8,7 +9,7 @@ from torch.nn import functional as F
 from huggingface_hub import hf_hub_download
 
 
-def _load_bigvgan():
+def _load_bigvgan() -> types.ModuleType:
     try:
         import bigvgan
     except ImportError as exc:
@@ -18,7 +19,7 @@ def _load_bigvgan():
     return bigvgan
 
 
-def _load_pretrained_bigvgan(model_id: str, use_cuda_kernel: bool):
+def _load_pretrained_bigvgan(model_id: str, use_cuda_kernel: bool) -> nn.Module:
     bigvgan = _load_bigvgan()
     config_path = Path(hf_hub_download(repo_id=model_id, filename="config.json"))
     weights_path = Path(
@@ -32,7 +33,7 @@ def _load_pretrained_bigvgan(model_id: str, use_cuda_kernel: bool):
     except RuntimeError:
         model.remove_weight_norm()
         model.load_state_dict(checkpoint_dict["generator"])
-    return model
+    return cast(nn.Module, model)
 
 
 class ResidualConvBlock(nn.Module):
@@ -48,7 +49,7 @@ class ResidualConvBlock(nn.Module):
         )
         self.act = nn.SiLU()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, list[torch.Tensor]]:
         return x + self.conv(self.act(x))
 
 
@@ -64,10 +65,7 @@ class BigVGANMelDecoder(nn.Module):
         self.input_proj = Conv1d(initial_channel, hidden_channels, 1)
         self.pitch_proj = Conv1d(1, hidden_channels, 1)
         self.blocks = nn.ModuleList(
-            [
-                ResidualConvBlock(hidden_channels, dilation)
-                for dilation in (1, 3, 9, 27)
-            ]
+            [ResidualConvBlock(hidden_channels, dilation) for dilation in (1, 3, 9, 27)]
         )
         self.output_proj = Conv1d(hidden_channels, num_mels, 1)
         self.cond = Conv1d(gin_channels, hidden_channels, 1) if gin_channels else None
@@ -89,14 +87,14 @@ class BigVGANNSFGenerator(nn.Module):
     def __init__(
         self,
         initial_channel: int,
-        resblock,
-        resblock_kernel_sizes,
-        resblock_dilation_sizes,
-        upsample_rates,
+        resblock: object,
+        resblock_kernel_sizes: Sequence[int],
+        resblock_dilation_sizes: Sequence[Sequence[int]],
+        upsample_rates: Sequence[int],
         upsample_initial_channel: int,
-        upsample_kernel_sizes,
+        upsample_kernel_sizes: Sequence[int],
         gin_channels: int,
-        sr,
+        sr: str | int,
         is_half: bool = False,
         model_id: str = "nvidia/bigvgan_v2_44khz_128band_512x",
         use_cuda_kernel: bool = False,
@@ -116,12 +114,14 @@ class BigVGANNSFGenerator(nn.Module):
         self.bigvgan = _load_pretrained_bigvgan(
             model_id=model_id, use_cuda_kernel=use_cuda_kernel
         )
+        # type: ignore[not-callable]
+        # type: ignore[not-callable]
         self.bigvgan.remove_weight_norm()
         self.bigvgan.eval()
         for parameter in self.bigvgan.parameters():
             parameter.requires_grad_(False)
 
-        h = cast(Any, self.bigvgan.h)
+        h = self.bigvgan.h
         self.mel_decoder = BigVGANMelDecoder(
             initial_channel=initial_channel,
             hidden_channels=upsample_initial_channel,
@@ -132,7 +132,7 @@ class BigVGANNSFGenerator(nn.Module):
 
     @property
     def sampling_rate(self) -> int:
-        return int(getattr(cast(Any, self.bigvgan.h), "sampling_rate"))
+        return int(getattr(self.bigvgan.h, "sampling_rate"))
 
     def remove_weight_norm(self) -> None:
         return None

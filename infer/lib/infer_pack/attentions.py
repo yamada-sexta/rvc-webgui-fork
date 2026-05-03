@@ -17,7 +17,7 @@ class Encoder(nn.Module):
         kernel_size: int = 1,
         p_dropout: float = 0.0,
         window_size: int = 10,
-        **kwargs: object,
+        # **kwargs: object,
     ) -> None:
         super(Encoder, self).__init__()
         self.hidden_channels = hidden_channels
@@ -84,7 +84,7 @@ class Decoder(nn.Module):
         p_dropout: float = 0.0,
         proximal_bias: bool = False,
         proximal_init: bool = True,
-        **kwargs: object,
+        # **kwargs: object,
     ) -> None:
         super(Decoder, self).__init__()
         self.hidden_channels = hidden_channels

@@ -1,20 +1,15 @@
-import logging
-from pathlib import Path
-import time
-from typing import List, Optional, Tuple
 import gradio as gr
-import numpy as np
 
 import shared
 from lib.f0 import PITCH_METHODS, PitchMethod
 from shared import i18n
 
 
-def clean():
+def clean() -> dict[str, object]:
     return {"value": "", "__type__": "update"}
 
 
-def change_choices():
+def change_choices() -> tuple[dict[str, object], dict[str, object]]:
     names = []
     for entry in shared.weight_root.iterdir():
         if entry.suffix == ".pth":
@@ -29,20 +24,20 @@ def change_choices():
     }
 
 
-def get_pitch_methods() -> List[PitchMethod]:
+def get_pitch_methods() -> list[PitchMethod]:
     return PITCH_METHODS
 
 
-def get_model_list() -> List[str]:
+def get_model_list() -> list[str]:
     print(f"Models: {shared.names}")
     return sorted(shared.names)
 
 
-def get_index_paths() -> List[str]:
+def get_index_paths() -> list[str]:
     return sorted(shared.index_paths)
 
 
-def create_inference_tab(app: gr.Blocks):
+def create_inference_tab(app: gr.Blocks) -> None:
 
     with gr.TabItem(i18n("Inference")):
         gr.api(
@@ -85,7 +80,7 @@ def create_inference_tab(app: gr.Blocks):
                         label=i18n("Output Audio"),
                     )
 
-                    def set_autoplay(x: bool):
+                    def set_autoplay(x: bool) -> dict[str, object]:
                         print(f"Set auto play: {x}")
                         return {"autoplay": x, "__type__": "update"}
 

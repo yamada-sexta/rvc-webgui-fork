@@ -1,7 +1,7 @@
 from lib.f0 import PitchMethod
 import traceback
 from pathlib import Path
-from typing import cast
+from typing import Mapping, cast
 import gradio as gr
 import resampy
 from loguru import logger
@@ -29,7 +29,7 @@ def resample_audio(
     audio_array: np.ndarray,
     orig_sr: int,
     target_sr: int,
-):
+) -> np.ndarray:
     # Check if the audio is stereo and downmix to mono
     if audio_array.ndim > 1 and audio_array.shape[1] > 1:
         # print("Detected stereo audio, downmixing to mono.")
@@ -67,7 +67,9 @@ class VC:
         self.hubert_model: HubertModel | None = None
         self.config: Config = config
 
-    def _build_synthesizer(self, cpt: RvcCheckpoint):
+    def _build_synthesizer(
+        self, cpt: RvcCheckpoint
+    ) -> SynthesizerTrnMs768NSFsid | SynthesizerTrnMs768BigVGANsid:
         version = cpt.get("version", "v2")
         model_cls = (
             SynthesizerTrnMs768BigVGANsid if version == "v3" else SynthesizerTrnMs768NSFsid
@@ -77,7 +79,9 @@ class VC:
             is_half=use_half_precision(),
         )
 
-    def get_vc(self: "VC", sid: str | None, *to_return_protect):
+    def get_vc(
+        self: "VC", sid: str | None, *to_return_protect: float
+    ) -> tuple[Mapping[str, object], object] | tuple[Mapping[str, object], str, str]:
         if sid is None or sid == "":
             logger.warning("No SID")
             return (

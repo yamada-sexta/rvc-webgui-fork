@@ -634,7 +634,8 @@ class SynthesizerTrnMs256NSFsid(nn.Module):
         spk_embed_dim: int,
         gin_channels: int,
         sr: str | int,
-        **kwargs: object,
+        is_half: bool,
+        # **kwargs: object,
     ) -> None:
         super(SynthesizerTrnMs256NSFsid, self).__init__()
         if isinstance(sr, str):
@@ -678,7 +679,8 @@ class SynthesizerTrnMs256NSFsid(nn.Module):
             upsample_kernel_sizes,
             gin_channels=gin_channels,
             sr=sr,
-            is_half=cast(bool, kwargs["is_half"]),
+            # is_half=cast(bool, kwargs["is_half"]),
+            is_half=is_half,
         )
         self.enc_q = PosteriorEncoder(
             spec_channels,
@@ -829,7 +831,8 @@ class SynthesizerTrnMs768NSFsid(SynthesizerTrnMs256NSFsid):
         spk_embed_dim: int,
         gin_channels: int,
         sr: str | int,
-        **kwargs: object,
+        is_half: bool,
+        # **kwargs: object,
     ) -> None:
         super(SynthesizerTrnMs768NSFsid, self).__init__(
             spec_channels,
@@ -850,7 +853,8 @@ class SynthesizerTrnMs768NSFsid(SynthesizerTrnMs256NSFsid):
             spk_embed_dim,
             gin_channels,
             sr,
-            **kwargs,
+            # **kwargs,
+            is_half=is_half,
         )
         del self.enc_p
         self.enc_p = TextEncoder(
@@ -886,7 +890,8 @@ class SynthesizerTrnMs768BigVGANsid(SynthesizerTrnMs768NSFsid):
         spk_embed_dim: int,
         gin_channels: int,
         sr: str | int,
-        **kwargs: object,
+        is_half: bool,
+        # **kwargs: object,
     ) -> None:
         super().__init__(
             spec_channels,
@@ -907,7 +912,8 @@ class SynthesizerTrnMs768BigVGANsid(SynthesizerTrnMs768NSFsid):
             spk_embed_dim,
             gin_channels,
             sr,
-            **kwargs,
+            # **kwargs,
+            is_half=is_half,
         )
         self.dec = BigVGANNSFGenerator(
             inter_channels,
@@ -919,7 +925,7 @@ class SynthesizerTrnMs768BigVGANsid(SynthesizerTrnMs768NSFsid):
             upsample_kernel_sizes,
             gin_channels=gin_channels,
             sr=sr,
-            is_half=cast(bool, kwargs["is_half"]),
+            is_half=is_half,
         )
 
 

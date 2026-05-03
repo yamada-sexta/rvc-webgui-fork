@@ -82,7 +82,9 @@ class STFT(torch.nn.Module):
         self, input_data: torch.Tensor, return_phase: Literal[True]
     ) -> tuple[torch.Tensor, torch.Tensor]: ...
 
-    def transform(self, input_data: torch.Tensor, return_phase: bool = False):
+    def transform(
+        self, input_data: torch.Tensor, return_phase: bool = False
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         """Take input data (audio) to STFT domain.
 
         Arguments:
@@ -184,7 +186,7 @@ class BiGRU(nn.Module):
             bidirectional=True,
         )
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.gru(x)[0]
 
 
@@ -219,7 +221,7 @@ class ConvBlockRes(nn.Module):
         if in_channels != out_channels:
             self.shortcut = nn.Conv2d(in_channels, out_channels, (1, 1))
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         if not hasattr(self, "shortcut"):
             return self.conv(x) + x
         else:
@@ -255,7 +257,7 @@ class Encoder(nn.Module):
         self.out_size = in_size
         self.out_channel = out_channels
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, list[torch.Tensor]]:
         concat_tensors: list[torch.Tensor] = []
         x = self.bn(x)
         for i, layer in enumerate(self.layers):
@@ -348,7 +350,9 @@ class ResDecoderBlock(nn.Module):
         for i in range(n_blocks - 1):
             self.conv2.append(ConvBlockRes(out_channels, out_channels, momentum))
 
-    def forward(self, x, concat_tensor):
+    def forward(
+        self, x: torch.Tensor, concat_tensor: torch.Tensor
+    ) -> torch.Tensor:
         x = self.conv1(x)
         x = torch.cat((x, concat_tensor), dim=1)
         for i, conv2 in enumerate(self.conv2):
@@ -375,7 +379,9 @@ class Decoder(nn.Module):
             )
             in_channels = out_channels
 
-    def forward(self, x: torch.Tensor, concat_tensors: list[torch.Tensor]):
+    def forward(
+        self, x: torch.Tensor, concat_tensors: list[torch.Tensor]
+    ) -> torch.Tensor:
         for i, layer in enumerate(self.layers):
             x = layer(x, concat_tensors[-1 - i])
         return x
@@ -445,7 +451,7 @@ class E2E(nn.Module):
                 nn.Linear(3 * 128, 360), nn.Dropout(0.25), nn.Sigmoid()
             )
 
-    def forward(self, mel: torch.Tensor):
+    def forward(self, mel: torch.Tensor) -> torch.Tensor:
         # print(mel.shape)
         # mel = mel.transpose(-1, -2).unsqueeze(1)
         # x = self.cnn(self.unet(mel)).transpose(1, 2).flatten(-2)

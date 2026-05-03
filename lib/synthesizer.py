@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import cast
 
 import torch
 
@@ -22,7 +22,9 @@ def get_synthesizer(
     version = cpt.get("version", "v2")
     if version not in {"v2", "v3"} or if_f0 != 1:
         raise ValueError("Only v2/v3 models with f0 are supported.")
-    model_cls = SynthesizerTrnMs768BigVGANsid if version == "v3" else SynthesizerTrnMs768NSFsid
+    model_cls = (
+        SynthesizerTrnMs768BigVGANsid if version == "v3" else SynthesizerTrnMs768NSFsid
+    )
     net_g = model_cls(*synthesizer_config_args_with_sr(cpt["config"]), is_half=False)
     del net_g.enc_q
     net_g.load_state_dict(cpt["weight"], strict=False)
@@ -42,5 +44,3 @@ def load_synthesizer(
         ),
         device,
     )
-
-
