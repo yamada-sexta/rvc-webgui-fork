@@ -590,82 +590,82 @@ def create_train_tab() -> None:
         with gr.Group():
             gr.Markdown(value=i18n("## Training Config"))
             with gr.Row():
-                save_epoch = gr.Slider(
-                    minimum=1,
-                    maximum=50,
-                    step=1,
-                    label=i18n("Save Frequency"),
-                    value=5,
-                    interactive=True,
-                )
-                total_epoch = gr.Slider(
-                    minimum=2,
-                    maximum=1000,
-                    step=1,
-                    label=i18n("Total Epochs"),
-                    value=20,
-                    interactive=True,
-                )
-                batch_size = gr.Slider(
-                    minimum=1,
-                    maximum=40,
-                    step=1,
-                    label=i18n("Batch Size"),
-                    value=shared.default_batch_size,
-                    interactive=True,
-                )
-                if_save_latest13 = gr.Radio(
-                    label=i18n("Only Save Latest Model"),
-                    choices=[i18n("Yes"), i18n("No")],
-                    value=i18n("No"),
-                    interactive=True,
-                )
-                if_save_every_weights18 = gr.Radio(
-                    label=i18n("Save Finalized Model Every Time"),
-                    choices=[i18n("Yes"), i18n("No")],
-                    value=i18n("No"),
-                    interactive=True,
-                )
-            with gr.Row():
-                pretrained_G14 = gr.Textbox(
-                    label=i18n("Base Model G"),
-                    value="assets/pretrained_v2/f0G48k.pth",
-                    interactive=True,
-                )
-                pretrained_D15 = gr.Textbox(
-                    label=i18n("Base Model D"),
-                    value="assets/pretrained_v2/f0D48k.pth",
-                    interactive=True,
-                )
-                target_sr.change(
-                    change_pretrained_inputs,
-                    [model_version, target_sr],
-                    [pretrained_G14, pretrained_D15],
-                )
-                model_version.change(
-                    change_version_and_sr,
-                    [model_version, target_sr],
-                    [target_sr, pretrained_G14, pretrained_D15],
-                )
-                train_btn = gr.Button(i18n("Train"), variant="primary")
+                with gr.Column():
+                    save_epoch = gr.Slider(
+                        minimum=1,
+                        maximum=50,
+                        step=1,
+                        label=i18n("Save Frequency"),
+                        value=5,
+                        interactive=True,
+                    )
+                    total_epoch = gr.Slider(
+                        minimum=2,
+                        maximum=1000,
+                        step=1,
+                        label=i18n("Total Epochs"),
+                        value=20,
+                        interactive=True,
+                    )
+                    batch_size = gr.Slider(
+                        minimum=1,
+                        maximum=40,
+                        step=1,
+                        label=i18n("Batch Size"),
+                        value=shared.default_batch_size,
+                        interactive=True,
+                    )
+                    if_save_latest13 = gr.Radio(
+                        label=i18n("Only Save Latest Model"),
+                        choices=[i18n("Yes"), i18n("No")],
+                        value=i18n("No"),
+                        interactive=True,
+                    )
+                    if_save_every_weights18 = gr.Radio(
+                        label=i18n("Save Finalized Model Every Time"),
+                        choices=[i18n("Yes"), i18n("No")],
+                        value=i18n("No"),
+                        interactive=True,
+                    )
+                    pretrained_G14 = gr.Textbox(
+                        label=i18n("Base Model G"),
+                        value="assets/pretrained_v2/f0G48k.pth",
+                        interactive=True,
+                    )
+                    pretrained_D15 = gr.Textbox(
+                        label=i18n("Base Model D"),
+                        value="assets/pretrained_v2/f0D48k.pth",
+                        interactive=True,
+                    )
+                with gr.Column():
+                    train_btn = gr.Button(i18n("Train"), variant="primary")
+                    training_info = gr.Textbox(label=i18n("Info"), value="", max_lines=10)
 
-                training_info = gr.Textbox(label=i18n("Info"), value="", max_lines=10)
-                train_btn.click(
-                    click_train,
-                    [
-                        experiment_name,
-                        target_sr,
-                        model_version,
-                        spk_id,
-                        save_epoch,
-                        total_epoch,
-                        batch_size,
-                        if_save_latest13,
-                        pretrained_G14,
-                        pretrained_D15,
-                        if_save_every_weights18,
-                    ],
-                    training_info,
-                    api_name="train_start",
-                )
-
+            target_sr.change(
+                change_pretrained_inputs,
+                [model_version, target_sr],
+                [pretrained_G14, pretrained_D15],
+            )
+            model_version.change(
+                change_version_and_sr,
+                [model_version, target_sr],
+                [target_sr, pretrained_G14, pretrained_D15],
+            )
+            train_btn.click(
+                click_train,
+                [
+                    experiment_name,
+                    target_sr,
+                    model_version,
+                    spk_id,
+                    save_epoch,
+                    total_epoch,
+                    batch_size,
+                    if_save_latest13,
+                    pretrained_G14,
+                    pretrained_D15,
+                    if_save_every_weights18,
+                ],
+                training_info,
+                api_name="train_start",
+            )
