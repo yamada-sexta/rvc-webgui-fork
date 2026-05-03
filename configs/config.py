@@ -15,10 +15,10 @@ from lib.json_validation import TrainingConfig
 
 VersionConfigPath: TypeAlias = Literal["v2/48k.json", "v2/32k.json"]
 
-version_config_list: list[VersionConfigPath] = [
+version_config_list: tuple[VersionConfigPath, ...] = (
     "v2/48k.json",
     "v2/32k.json",
-]
+)
 
 T = TypeVar("T")
 
