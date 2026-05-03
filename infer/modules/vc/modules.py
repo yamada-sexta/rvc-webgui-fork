@@ -58,9 +58,9 @@ class VC:
         # self.config = config
         self.n_spk: int | None = None
         self.tgt_sr: int | None = None
-        self.net_g: (
-            SynthesizerTrnMs768NSFsid | SynthesizerTrnMs768BigVGANsid | None
-        ) = None
+        self.net_g: SynthesizerTrnMs768NSFsid | SynthesizerTrnMs768BigVGANsid | None = (
+            None
+        )
         self.pipeline: Pipeline | None = None
         self.cpt: RvcCheckpoint | None = None
         self.version: str = "UNKNOWN"
@@ -72,7 +72,9 @@ class VC:
     ) -> SynthesizerTrnMs768NSFsid | SynthesizerTrnMs768BigVGANsid:
         version = cpt.get("version", "v2")
         model_cls = (
-            SynthesizerTrnMs768BigVGANsid if version == "v3" else SynthesizerTrnMs768NSFsid
+            SynthesizerTrnMs768BigVGANsid
+            if version == "v3"
+            else SynthesizerTrnMs768NSFsid
         )
         return model_cls(
             *synthesizer_config_args_with_sr(cpt["config"]),
@@ -183,6 +185,8 @@ class VC:
     ) -> tuple[str, tuple[int, np.ndarray] | None]:
         if self.net_g is None or self.pipeline is None:
             return "Model not loaded. Please select a valid SID.", None
+        if self.version not in {"v2", "v3"}:
+            raise ValueError("Only v2/v3 models with f0 are supported.")
         file_index = None
         f0_file = None
         sid = 0
@@ -190,7 +194,7 @@ class VC:
         tgt_sr = self.tgt_sr
         if tgt_sr is None:
             return "Model target sample rate unknown. Please reload the model.", None
-        f0_up_key = int(f0_up_key)
+        # f0_up_key = f0_up_key
         try:
             if sr_and_audio is None:
                 return "Audio is required", None
@@ -232,7 +236,7 @@ class VC:
                 tgt_sr = resample_sr
             index_info = (
                 f"Using Index: \n{file_index}"
-                if file_index and Path(file_index).exists()
+                if (file_index != "" and Path(file_index).exists())
                 else "Index not used."
             )
             return (
@@ -243,4 +247,3 @@ class VC:
             info = traceback.format_exc()
             logger.warning(info)
             return f"Failed with error:\n{info}", None
-

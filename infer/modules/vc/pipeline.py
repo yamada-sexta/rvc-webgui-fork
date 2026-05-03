@@ -1,3 +1,4 @@
+from typing import Literal
 import sys
 import traceback
 from pathlib import Path
@@ -125,14 +126,14 @@ class Pipeline:
         pitch: torch.Tensor | None,
         pitchf: torch.Tensor | None,
         times: list[float],
-        index: faiss.Index | None,
-        big_npy: np.ndarray | None,
-        index_rate: float,
-        version: str,
+        # index: faiss.Index | None,
+        # big_npy: np.ndarray | None,
+        # index_rate: float,
+        version: Literal["v2", "v3"],
         protect: float,
     ) -> np.ndarray:  # ,file_index,file_big_npy
-        if version not in {"v2", "v3"}:
-            raise ValueError("Only v2/v3 models with f0 are supported.")
+        # if version not in {"v2", "v3"}:
+        #     raise ValueError("Only v2/v3 models with f0 are supported.")
         feats = torch.from_numpy(audio)
         if self.is_half:
             try:
@@ -167,22 +168,22 @@ class Pipeline:
             # and not isinstance(big_npy, type(None))
             # and index_rate != 0
 
-        if index is not None and big_npy is not None and index_rate != 0:
-            npy = feats[0].cpu().numpy()
-            if self.is_half:
-                npy = npy.astype("float32")
+        # if index is not None and big_npy is not None and index_rate != 0:
+        #     npy = feats[0].cpu().numpy()
+        #     if self.is_half:
+        #         npy = npy.astype("float32")
 
-            score, ix = index.search(npy, k=8)  # type: ignore[missing-argument]
-            weight = np.square(1 / score)
-            weight /= weight.sum(axis=1, keepdims=True)
-            npy = np.sum(big_npy[ix] * np.expand_dims(weight, axis=2), axis=1)
+        #     score, ix = index.search(npy, k=8)
+        #     weight = np.square(1 / score)
+        #     weight /= weight.sum(axis=1, keepdims=True)
+        #     npy = np.sum(big_npy[ix] * np.expand_dims(weight, axis=2), axis=1)
 
-            if self.is_half:
-                npy = npy.astype("float16")
-            feats = (
-                torch.from_numpy(npy).unsqueeze(0).to(self.device) * index_rate
-                + (1 - index_rate) * feats
-            )
+        #     if self.is_half:
+        #         npy = npy.astype("float16")
+        #     feats = (
+        #         torch.from_numpy(npy).unsqueeze(0).to(self.device) * index_rate
+        #         + (1 - index_rate) * feats
+        #     )
 
         feats = F.interpolate(feats.permute(0, 2, 1), scale_factor=2).permute(0, 2, 1)
         if protect < 0.5 and pitch is not None and pitchf is not None:
@@ -235,7 +236,7 @@ class Pipeline:
         tgt_sr: int,
         resample_sr: int,
         rms_mix_rate: float,
-        version: str,
+        version: Literal["v2", "v3"],
         protect: float,
         f0_file: NamedFile | None = None,
         progress: gr.Progress = gr.Progress(),
@@ -336,9 +337,9 @@ class Pipeline:
                     pitch[:, s // self.window : (t + self.t_pad2) // self.window],
                     pitchf[:, s // self.window : (t + self.t_pad2) // self.window],
                     times,
-                    index,
-                    big_npy,
-                    index_rate,
+                    # index,
+                    # big_npy,
+                    # index_rate,
                     version,
                     protect,
                 )[self.t_pad_tgt : -self.t_pad_tgt]
@@ -358,9 +359,9 @@ class Pipeline:
                 pitch[:, t // self.window :] if t is not None else pitch,
                 pitchf[:, t // self.window :] if t is not None else pitchf,
                 times,
-                index,
-                big_npy,
-                index_rate,
+                # index,
+                # big_npy,
+                # index_rate,
                 version,
                 protect,
             )[self.t_pad_tgt : -self.t_pad_tgt]

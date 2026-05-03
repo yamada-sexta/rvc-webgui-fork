@@ -1,7 +1,7 @@
 import math
 import logging
 from collections.abc import Sequence
-from typing import cast
+from typing import cast, Literal
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,9 @@ from infer.lib.infer_pack.commons import get_padding, init_weights
 def remove_weight_norm(module: nn.Module, name: str = "weight") -> nn.Module:
     remove_parametrizations(module, name, leave_parametrized=True)
     return module
+
+
+type VCVersion = Literal["v2", "v3"]
 
 
 class TextEncoder(nn.Module):
