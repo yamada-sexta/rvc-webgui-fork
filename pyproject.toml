@@ -38,6 +38,7 @@ dependencies = [
     "pydantic>=2.11.10",
     "accelerate>=1.13.0",
     "bigvgan>=2.4.1",
+    "transformers>=5.7.0",
 ]
 
 [tool.uv.sources]
