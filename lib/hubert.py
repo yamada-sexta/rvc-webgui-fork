@@ -1,6 +1,6 @@
 import math
 import random
-from typing import Literal
+from typing import Any, Literal, overload
 
 from fairseq.checkpoint_utils import load_model_ensemble_and_task
 from fairseq.utils import index_put
@@ -10,9 +10,21 @@ import torch
 import torch.nn.functional as F
 
 
+@overload
+def pad_to_multiple(
+    x: None, multiple: int, dim: int = -1, value: int = 0
+) -> tuple[None, int]: ...
+
+
+@overload
+def pad_to_multiple(
+    x: torch.Tensor, multiple: int, dim: int = -1, value: int = 0
+) -> tuple[torch.Tensor, int]: ...
+
+
 def pad_to_multiple(
     x: torch.Tensor | None, multiple: int, dim: int = -1, value: int = 0
-):
+) -> tuple[torch.Tensor | None, int]:
     # Inspired from https://github.com/lucidrains/local-attention/blob/master/local_attention/local_attention.py#L41
     if x is None:
         return None, 0
@@ -27,12 +39,14 @@ def pad_to_multiple(
 
 
 def extract_features(
-    self,
+    self: Any,
     x: torch.Tensor,
     padding_mask: torch.Tensor | None = None,
     tgt_layer: int | None = None,
     min_layer: int = 0,
-):
+) -> tuple[
+    torch.Tensor, list[tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None]]
+]:
     if padding_mask is not None:
         x = index_put(x, padding_mask, 0)
 
@@ -90,6 +104,8 @@ def extract_features(
             )
 
         layer_results = [undo_pad(*u) for u in layer_results]
+    # assert x is not None
+    # assert padding_mask is not None
 
     return x, layer_results
 
@@ -229,8 +245,8 @@ def compute_mask_indices(
 
 
 def apply_mask(
-    self, x: torch.Tensor, padding_mask: torch.Tensor, target_list: list[int]
-):
+    self: Any, x: torch.Tensor, padding_mask: torch.Tensor, target_list: list[int]
+) -> tuple[torch.Tensor, torch.Tensor | None]:
     B, T, C = x.shape
     torch.zeros_like(x)
     if self.mask_prob > 0:
@@ -272,7 +288,7 @@ def apply_mask(
 def get_hubert(
     model_path: Path = Path("assets/hubert/hubert_base.pt"),
     device: torch.device = torch.device("cpu"),
-):
+) -> torch.nn.Module:
     models, _, _ = load_model_ensemble_and_task(
         [model_path],
         suffix="",
