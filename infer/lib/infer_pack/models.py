@@ -141,16 +141,6 @@ class ResidualCouplingBlock(nn.Module):
             flow = cast(modules.ResidualCouplingLayer, self.flows[i * 2])
             flow.remove_weight_norm()
 
-    def __prepare_scriptable__(self) -> "ResidualCouplingBlock":
-        for i in range(self.n_flows):
-            for hook in self.flows[i * 2]._forward_pre_hooks.values():
-                if (
-                    hook.__module__ == "torch.nn.utils.weight_norm"
-                    and hook.__class__.__name__ == "WeightNorm"
-                ):
-                    torch.nn.utils.remove_weight_norm(self.flows[i * 2])
-
-        return self
 
 
 class PosteriorEncoder(nn.Module):
@@ -199,14 +189,6 @@ class PosteriorEncoder(nn.Module):
     def remove_weight_norm(self) -> None:
         self.enc.remove_weight_norm()
 
-    def __prepare_scriptable__(self) -> "PosteriorEncoder":
-        for hook in self.enc._forward_pre_hooks.values():
-            if (
-                hook.__module__ == "torch.nn.utils.weight_norm"
-                and hook.__class__.__name__ == "WeightNorm"
-            ):
-                torch.nn.utils.remove_weight_norm(self.enc)
-        return self
 
 
 class Generator(torch.nn.Module):
@@ -289,27 +271,6 @@ class Generator(torch.nn.Module):
 
         return x
 
-    def __prepare_scriptable__(self) -> "Generator":
-        for l in self.ups:
-            for hook in l._forward_pre_hooks.values():
-                # The hook we want to remove is an instance of WeightNorm class, so
-                # normally we would do `if isinstance(...)` but this class is not accessible
-                # because of shadowing, so we check the module name directly.
-                # https://github.com/pytorch/pytorch/blob/be0ca00c5ce260eb5bcec3237357f7a30cc08983/torch/nn/utils/__init__.py#L3
-                if (
-                    hook.__module__ == "torch.nn.utils.weight_norm"
-                    and hook.__class__.__name__ == "WeightNorm"
-                ):
-                    torch.nn.utils.remove_weight_norm(l)
-
-        for l in self.resblocks:
-            for hook in l._forward_pre_hooks.values():
-                if (
-                    hook.__module__ == "torch.nn.utils.weight_norm"
-                    and hook.__class__.__name__ == "WeightNorm"
-                ):
-                    torch.nn.utils.remove_weight_norm(l)
-        return self
 
     def remove_weight_norm(self) -> None:
         for l in self.ups:
@@ -551,8 +512,6 @@ class GeneratorNSF(torch.nn.Module):
         x = self.conv_pre(x)
         if g is not None:
             x = x + self.cond(g)
-        # torch.jit.script() does not support direct indexing of torch modules
-        # That's why I wrote this
         for i, (ups, noise_convs) in enumerate(zip(self.ups, self.noise_convs)):
             if i < self.num_upsamples:
                 x = F.leaky_relu(x, self.lrelu_slope)
@@ -567,8 +526,6 @@ class GeneratorNSF(torch.nn.Module):
                             xs = resblock(x)
                         else:
                             xs += resblock(x)
-                # This assertion cannot be ignored! \
-                # If ignored, it will cause torch.jit.script() compilation errors
                 assert isinstance(xs, torch.Tensor)
                 x = xs / self.num_kernels
         x = F.leaky_relu(x)
@@ -583,26 +540,6 @@ class GeneratorNSF(torch.nn.Module):
         for l in self.resblocks:
             l.remove_weight_norm()
 
-    def __prepare_scriptable__(self) -> "GeneratorNSF":
-        for l in self.ups:
-            for hook in l._forward_pre_hooks.values():
-                # The hook we want to remove is an instance of WeightNorm class, so
-                # normally we would do `if isinstance(...)` but this class is not accessible
-                # because of shadowing, so we check the module name directly.
-                # https://github.com/pytorch/pytorch/blob/be0ca00c5ce260eb5bcec3237357f7a30cc08983/torch/nn/utils/__init__.py#L3
-                if (
-                    hook.__module__ == "torch.nn.utils.weight_norm"
-                    and hook.__class__.__name__ == "WeightNorm"
-                ):
-                    torch.nn.utils.remove_weight_norm(l)
-        for l in self.resblocks:
-            for hook in self.resblocks._forward_pre_hooks.values():
-                if (
-                    hook.__module__ == "torch.nn.utils.weight_norm"
-                    and hook.__class__.__name__ == "WeightNorm"
-                ):
-                    torch.nn.utils.remove_weight_norm(l)
-        return self
 
 
 sr2sr = {
@@ -705,29 +642,7 @@ class SynthesizerTrnMs768NSFsid(nn.Module):
         if hasattr(self, "enc_q"):
             self.enc_q.remove_weight_norm()
 
-    def __prepare_scriptable__(self) -> "SynthesizerTrnMs768NSFsid":
-        for hook in self.dec._forward_pre_hooks.values():
-            if (
-                hook.__module__ == "torch.nn.utils.weight_norm"
-                and hook.__class__.__name__ == "WeightNorm"
-            ):
-                torch.nn.utils.remove_weight_norm(self.dec)
-        for hook in self.flow._forward_pre_hooks.values():
-            if (
-                hook.__module__ == "torch.nn.utils.weight_norm"
-                and hook.__class__.__name__ == "WeightNorm"
-            ):
-                torch.nn.utils.remove_weight_norm(self.flow)
-        if hasattr(self, "enc_q"):
-            for hook in self.enc_q._forward_pre_hooks.values():
-                if (
-                    hook.__module__ == "torch.nn.utils.weight_norm"
-                    and hook.__class__.__name__ == "WeightNorm"
-                ):
-                    torch.nn.utils.remove_weight_norm(self.enc_q)
-        return self
 
-    @torch.jit.ignore
     def forward(
         self,
         phone: torch.Tensor,
@@ -765,7 +680,6 @@ class SynthesizerTrnMs768NSFsid(nn.Module):
         o = self.dec(z_slice, pitchf, g=g)
         return o, ids_slice, x_mask, y_mask, (z, z_p, m_p, logs_p, m_q, logs_q)
 
-    @torch.jit.export
     def infer(
         self,
         phone: torch.Tensor,

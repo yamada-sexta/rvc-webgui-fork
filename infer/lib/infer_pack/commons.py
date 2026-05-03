@@ -129,7 +129,6 @@ def subsequent_mask(length: int) -> torch.Tensor:
     return mask
 
 
-@torch.jit.script
 def fused_add_tanh_sigmoid_multiply(
     input_a: torch.Tensor, input_b: torch.Tensor, n_channels: torch.Tensor
 ) -> torch.Tensor:
