@@ -1,9 +1,7 @@
-from typing import cast
-import os
 import sys
 import traceback
 from pathlib import Path
-from typing import Protocol, TypeAlias
+from typing import Protocol, TypeAlias, cast
 
 from configs.config import Config
 from infer.lib.infer_pack.models import (
