@@ -1,11 +1,12 @@
-from typing import Final, cast
-
+import torch
 import torch.nn as nn
+from torch import Tensor
+from typing import Final, cast
 
 from .deepunet import DeepUnet
 
-N_MELS: Final = cast(int, getattr(nn, "N_MELS", 128))
-N_CLASS: Final = cast(int, getattr(nn, "N_CLASS", 360))
+N_MELS: Final[int] = cast(int, getattr(nn, "N_MELS", 128))
+N_CLASS: Final[int] = cast(int, getattr(nn, "N_CLASS", 360))
 
 
 class E2E(nn.Module):
@@ -14,11 +15,11 @@ class E2E(nn.Module):
         n_blocks: int,
         n_gru: int,
         kernel_size: tuple[int, int],
-        en_de_layers=5,
-        inter_layers=4,
-        in_channels=1,
-        en_out_channels=16,
-    ):
+        en_de_layers: int = 5,
+        inter_layers: int = 4,
+        in_channels: int = 1,
+        en_out_channels: int = 16,
+    ) -> None:
         super(E2E, self).__init__()
 
         self.unet = DeepUnet(
@@ -32,8 +33,8 @@ class E2E(nn.Module):
         self.cnn = nn.Conv2d(en_out_channels, 3, (3, 3), padding=(1, 1))
         if n_gru:
             self.fc = nn.Sequential(
-                self.BiGRU(3 * 128, 256, n_gru),
-                nn.Linear(512, 360),
+                self.BiGRU(3 * N_MELS, 256, n_gru),
+                nn.Linear(512, N_CLASS),
                 nn.Dropout(0.25),
                 nn.Sigmoid(),
             )
@@ -44,7 +45,7 @@ class E2E(nn.Module):
                 nn.Sigmoid(),
             )
 
-    def forward(self, mel):
+    def forward(self, mel: Tensor) -> Tensor:
         mel = mel.transpose(-1, -2).unsqueeze(1)
         x = self.cnn(self.unet(mel)).transpose(1, 2).flatten(-2)
         x = self.fc(x)
@@ -56,7 +57,7 @@ class E2E(nn.Module):
             input_features: int,
             hidden_features: int,
             num_layers: int,
-        ):
+        ) -> None:
             super().__init__()
             self.gru = nn.GRU(
                 input_features,
@@ -66,5 +67,5 @@ class E2E(nn.Module):
                 bidirectional=True,
             )
 
-        def forward(self, x):
-            return self.gru(x)[0]
+        def forward(self, x: Tensor) -> Tensor:
+            return cast(Tensor, self.gru(x)[0])
