@@ -613,7 +613,7 @@ sr2sr = {
 }
 
 
-class SynthesizerTrnMs256NSFsid(nn.Module):
+class SynthesizerTrnMs768NSFsid(nn.Module):
     def __init__(
         self,
         spec_channels: int,
@@ -635,9 +635,8 @@ class SynthesizerTrnMs256NSFsid(nn.Module):
         gin_channels: int,
         sr: str | int,
         is_half: bool,
-        # **kwargs: object,
     ) -> None:
-        super(SynthesizerTrnMs256NSFsid, self).__init__()
+        super().__init__()
         if isinstance(sr, str):
             sr = sr2sr[sr]
         self.spec_channels = spec_channels
@@ -656,10 +655,9 @@ class SynthesizerTrnMs256NSFsid(nn.Module):
         self.upsample_kernel_sizes = upsample_kernel_sizes
         self.segment_size = segment_size
         self.gin_channels = gin_channels
-        # self.hop_length = hop_length#
         self.spk_embed_dim = spk_embed_dim
         self.enc_p = TextEncoder(
-            256,
+            768,
             inter_channels,
             hidden_channels,
             filter_channels,
@@ -679,7 +677,6 @@ class SynthesizerTrnMs256NSFsid(nn.Module):
             upsample_kernel_sizes,
             gin_channels=gin_channels,
             sr=sr,
-            # is_half=cast(bool, kwargs["is_half"]),
             is_half=is_half,
         )
         self.enc_q = PosteriorEncoder(
@@ -708,12 +705,8 @@ class SynthesizerTrnMs256NSFsid(nn.Module):
         if hasattr(self, "enc_q"):
             self.enc_q.remove_weight_norm()
 
-    def __prepare_scriptable__(self) -> "SynthesizerTrnMs256NSFsid":
+    def __prepare_scriptable__(self) -> "SynthesizerTrnMs768NSFsid":
         for hook in self.dec._forward_pre_hooks.values():
-            # The hook we want to remove is an instance of WeightNorm class, so
-            # normally we would do `if isinstance(...)` but this class is not accessible
-            # because of shadowing, so we check the module name directly.
-            # https://github.com/pytorch/pytorch/blob/be0ca00c5ce260eb5bcec3237357f7a30cc08983/torch/nn/utils/__init__.py#L3
             if (
                 hook.__module__ == "torch.nn.utils.weight_norm"
                 and hook.__class__.__name__ == "WeightNorm"
@@ -808,65 +801,6 @@ class SynthesizerTrnMs256NSFsid(nn.Module):
             z = self.flow(z_p, x_mask, g=g, reverse=True)
         o = self.dec(z * x_mask, nsff0, g=g, n_res=return_length2)
         return o, x_mask, (z, z_p, m_p, logs_p)
-
-
-class SynthesizerTrnMs768NSFsid(SynthesizerTrnMs256NSFsid):
-    def __init__(
-        self,
-        spec_channels: int,
-        segment_size: int,
-        inter_channels: int,
-        hidden_channels: int,
-        filter_channels: int,
-        n_heads: int,
-        n_layers: int,
-        kernel_size: int,
-        p_dropout: float,
-        resblock: str,
-        resblock_kernel_sizes: Sequence[int],
-        resblock_dilation_sizes: Sequence[Sequence[int]],
-        upsample_rates: Sequence[int],
-        upsample_initial_channel: int,
-        upsample_kernel_sizes: Sequence[int],
-        spk_embed_dim: int,
-        gin_channels: int,
-        sr: str | int,
-        is_half: bool,
-        # **kwargs: object,
-    ) -> None:
-        super(SynthesizerTrnMs768NSFsid, self).__init__(
-            spec_channels,
-            segment_size,
-            inter_channels,
-            hidden_channels,
-            filter_channels,
-            n_heads,
-            n_layers,
-            kernel_size,
-            p_dropout,
-            resblock,
-            resblock_kernel_sizes,
-            resblock_dilation_sizes,
-            upsample_rates,
-            upsample_initial_channel,
-            upsample_kernel_sizes,
-            spk_embed_dim,
-            gin_channels,
-            sr,
-            # **kwargs,
-            is_half=is_half,
-        )
-        del self.enc_p
-        self.enc_p = TextEncoder(
-            768,
-            inter_channels,
-            hidden_channels,
-            filter_channels,
-            n_heads,
-            n_layers,
-            kernel_size,
-            float(p_dropout),
-        )
 
 
 class SynthesizerTrnMs768BigVGANsid(SynthesizerTrnMs768NSFsid):
