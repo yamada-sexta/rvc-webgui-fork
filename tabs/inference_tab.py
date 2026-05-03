@@ -9,19 +9,12 @@ def clean() -> dict[str, object]:
     return {"value": "", "__type__": "update"}
 
 
-def change_choices() -> tuple[dict[str, object], dict[str, object]]:
+def change_choices() -> dict[str, object]:
     names = []
     for entry in shared.weight_root.iterdir():
         if entry.suffix == ".pth":
             names.append(entry.name)
-    index_paths = [""]
-    for index_file in shared.index_root.rglob("*.index"):
-        if "trained" not in index_file.name:
-            index_paths.append(str(index_file))
-    return {"choices": sorted(names), "__type__": "update"}, {
-        "choices": sorted(index_paths),
-        "__type__": "update",
-    }
+    return {"choices": sorted(names), "__type__": "update"}
 
 
 def get_pitch_methods() -> list[PitchMethod]:
@@ -33,19 +26,12 @@ def get_model_list() -> list[str]:
     return sorted(shared.names)
 
 
-def get_index_paths() -> list[str]:
-    return sorted(shared.index_paths)
 
 
 def create_inference_tab(app: gr.Blocks) -> None:
 
     with gr.TabItem(i18n("Inference")):
-        gr.api(
-            get_model_list,
-            api_name="get_model_list",
-        )
         gr.api(get_pitch_methods, api_name="get_pitch_methods")
-        gr.api(get_index_paths, api_name="get_index_paths")
         with gr.Row():
             with gr.Column():
                 model_list = sorted(shared.names)
@@ -127,21 +113,7 @@ def create_inference_tab(app: gr.Blocks) -> None:
                     step=0.01,
                     interactive=True,
                 )
-                index_rate1 = gr.Slider(
-                    minimum=0,
-                    maximum=1,
-                    label=i18n("Search feature ratio"),
-                    value=0.75,
-                    interactive=True,
-                )
             with gr.Column():
-                file_index2 = gr.Dropdown(
-                    label=i18n("Index File"),
-                    choices=sorted(shared.index_paths),
-                    interactive=True,
-                    allow_custom_value=True,
-                    value="",
-                )
                 f0method0 = gr.Radio(
                     label=i18n("Pitch Method"),
                     choices=get_pitch_methods(),
@@ -156,8 +128,6 @@ def create_inference_tab(app: gr.Blocks) -> None:
                 audio_input,
                 pitch_offset,
                 f0method0,
-                file_index2,
-                index_rate1,
                 resample_sr0,
                 rms_mix_rate0,
                 protect0,
@@ -168,7 +138,7 @@ def create_inference_tab(app: gr.Blocks) -> None:
         refresh_btn.click(
             fn=change_choices,
             inputs=[],
-            outputs=[model_dropdown, file_index2],
+            outputs=[model_dropdown],
             api_name="infer_refresh",
         )
         model_dropdown.change(
@@ -177,7 +147,7 @@ def create_inference_tab(app: gr.Blocks) -> None:
                 model_dropdown,
                 protect0,
             ],  # Use protect0 and protect1 from Basic/Batch tab
-            outputs=[protect0, file_index2],
+            outputs=[protect0],
             api_name="infer_change_voice",
         )
         app.load(
@@ -186,5 +156,5 @@ def create_inference_tab(app: gr.Blocks) -> None:
                 model_dropdown,
                 protect0,
             ],  # Use the components themselves to get their initial values
-            outputs=[protect0, file_index2],
+            outputs=[protect0],
         )

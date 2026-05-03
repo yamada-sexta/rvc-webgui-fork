@@ -8,15 +8,6 @@ import shared
 from lib.accelerate_utils import get_device, use_half_precision
 
 
-def get_index_path_from_model(sid: str) -> str:
-    return next(
-        (
-            str(f)
-            for f in shared.index_root.rglob("*.index")
-            if "trained" not in f.name and sid.split(".")[0] in f.name
-        ),
-        "",
-    )
 
 
 def load_hubert(config: Config) -> HubertModel:  # hubert_model is a torch.nn.Module

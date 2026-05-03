@@ -7,7 +7,6 @@ requires-python = ">=3.12"
 dependencies = [
     "av>=15.0.0",
     "fairseq",
-    "faiss-cpu>=1.7.3",
     "fsspec>=2022.11.0",
     "gitpython>=3.1.44",
     "gradio>=5,<6",

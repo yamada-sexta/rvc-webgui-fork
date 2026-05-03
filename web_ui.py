@@ -19,7 +19,7 @@ if FairseqDictionary is not None:
 warnings.filterwarnings("ignore")
 
 # Set logging levels for noisy modules
-for l in ["httpx", "uvicorn", "httpcore", "urllib3", "PIL", "faiss"]:
+for l in ("httpx", "uvicorn", "httpcore", "urllib3", "PIL"):
     logging.getLogger(l).setLevel(logging.ERROR)
 
 # Now import shared after setting up logging

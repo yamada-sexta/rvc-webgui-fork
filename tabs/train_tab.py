@@ -12,7 +12,6 @@ from collections.abc import Generator
 from time import sleep
 from typing import Literal
 
-import faiss
 import gradio as gr
 import numpy as np
 from loguru import logger
@@ -493,112 +492,6 @@ def click_train(
     yield f"Training finished with exit code {return_code}.\n{summary}".strip()
 
 
-def train_index(
-    exp_dir1: str,
-    version: ModelVersion = "v2",
-    progress: gr.Progress = gr.Progress(),
-) -> Generator[str, None, None]:
-    exp_dir = "logs/%s" % (exp_dir1)
-    os.makedirs(exp_dir, exist_ok=True)
-    feature_dir = "%s/3_feature768" % (exp_dir)
-    if not os.path.exists(feature_dir):
-        yield "Please perform feature extraction first!"
-        return
-    listdir_res = list(os.listdir(feature_dir))
-    if len(listdir_res) == 0:
-        yield "Please perform feature extraction first!"
-        return
-
-    progress(0.05, desc="Loading features...")  # Initial progress update
-    infos = []
-    npys = []
-    for name in sorted(listdir_res):
-        phone = np.load("%s/%s" % (feature_dir, name))
-        npys.append(phone)
-    big_npy = np.concatenate(npys, 0)
-    big_npy_idx = np.arange(big_npy.shape[0])
-    np.random.shuffle(big_npy_idx)
-    big_npy = big_npy[big_npy_idx]
-    if big_npy.shape[0] > 2e5:
-        infos.append(
-            "Trying to perform KMeans on %s samples to 10k centers." % big_npy.shape[0]
-        )
-        # yield "\n".join(infos)
-        progress(0.2, desc="Performing KMeans...")  # Progress update for KMeans
-        try:
-            big_npy = (
-                MiniBatchKMeans(
-                    n_clusters=10000,
-                    verbose=True,
-                    batch_size=256 * shared.config.n_cpu,
-                    compute_labels=False,
-                    init="random",
-                )
-                .fit(big_npy)
-                .cluster_centers_
-            )
-        except:
-            info = traceback.format_exc()
-            logger.info(info)
-            infos.append(info)
-            yield "\n".join(infos)
-
-    np.save("%s/total_fea.npy" % exp_dir, big_npy)
-    n_ivf = min(int(16 * np.sqrt(big_npy.shape[0])), big_npy.shape[0] // 39)
-    infos.append("%s,%s" % (big_npy.shape, n_ivf))
-    # yield "\n".join(infos)
-    progress(0.5, desc="Training FAISS index...")  # Progress update for training
-    index = faiss.index_factory(768, "IVF%s,Flat" % n_ivf)
-    infos.append("training")
-    # yield "\n".join(infos)
-    index_ivf = faiss.extract_index_ivf(index)  #
-    index_ivf.nprobe = 1
-    index.train(big_npy)
-    faiss.write_index(
-        index,
-        "%s/trained_IVF%s_Flat_nprobe_%s_%s_%s.index"
-        % (exp_dir, n_ivf, index_ivf.nprobe, exp_dir1, version),
-    )
-    progress(0.7, desc="Adding vectors to index...")
-    infos.append("Adding vectors to index...")
-    # yield "\n".join(infos)
-    batch_size_add = 8192
-    for i in range(0, big_npy.shape[0], batch_size_add):
-        index.add(big_npy[i : i + batch_size_add])
-    faiss.write_index(
-        index,
-        "%s/added_IVF%s_Flat_nprobe_%s_%s_%s.index"
-        % (exp_dir, n_ivf, index_ivf.nprobe, exp_dir1, version),
-    )
-    infos.append(
-        "Successfully built index: added_IVF%s_Flat_nprobe_%s_%s_%s.index"  # Original: "Successfully built index added_IVF%s_Flat_nprobe_%s_%s_%s.index"
-        % (n_ivf, index_ivf.nprobe, exp_dir1, version)
-    )
-    try:
-        link = os.link if platform.system() == "Windows" else os.symlink
-        link(
-            "%s/added_IVF%s_Flat_nprobe_%s_%s_%s.index"
-            % (exp_dir, n_ivf, index_ivf.nprobe, exp_dir1, version),
-            "%s/%s_IVF%s_Flat_nprobe_%s_%s_%s.index"
-            % (
-                shared.outside_index_root,
-                exp_dir1,
-                n_ivf,
-                index_ivf.nprobe,
-                exp_dir1,
-                version,
-            ),
-        )
-        infos.append(
-            "Linked index to external directory: %s" % (shared.outside_index_root)
-        )  # Original: "Linked index to external - %s"
-    except:
-        infos.append(
-            "Failed to link index to external directory: %s"
-            % (shared.outside_index_root)
-        )  # Original: "Failed to link index to external - %s"
-    progress(1.0, desc="Indexing complete!")  # Final progress update
-    yield "\n".join(infos)
 
 
 def one_click_training(
@@ -658,10 +551,6 @@ def one_click_training(
         i18n("Training finished, you can view the console training log or train.log in the experiment folder")
     )
 
-    # step3b: Train index
-    progress(0.0, desc=i18n("Training index..."))
-    for update in train_index(exp_dir1, version19):
-        final_sections.append(update)
     final_sections.append(i18n("Full process completed!"))
     yield "\n\n".join(section for section in final_sections if section).strip()
 
@@ -820,7 +709,6 @@ def create_train_tab() -> None:
                     [target_sr, pretrained_G14, pretrained_D15],
                 )
                 train_btn = gr.Button(i18n("Train"), variant="primary")
-                index_btn = gr.Button(i18n("Extra Feature Index"), variant="primary")
                 one_click_btn = gr.Button(i18n("Train Everything"), variant="primary")
 
                 training_info = gr.Textbox(label=i18n("Info"), value="", max_lines=10)
@@ -842,7 +730,6 @@ def create_train_tab() -> None:
                     training_info,
                     api_name="train_start",
                 )
-                index_btn.click(train_index, [experiment_name, model_version], training_info)
                 one_click_btn.click(
                     one_click_training,
                     [

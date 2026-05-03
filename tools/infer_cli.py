@@ -20,16 +20,12 @@ class InferArgs(Tap):
     f0up_key: int = 0
     # Input audio path.
     input_path: str
-    # Optional retrieval index path.
-    index_path: str | None = None
     # F0 extraction method.
     f0method: PitchMethod = "harvest"
     # Output audio path.
     opt_path: str
     # Model name stored in assets/weights.
     model_name: str
-    # Retrieval index influence.
-    index_rate: float = 0.66
     # Median filter radius for extracted pitch.
     filter_radius: int = 3
     # Resample output sample rate, or 0 to keep model rate.
@@ -63,8 +59,6 @@ def main() -> None:
         (16000, audio),
         args.f0up_key,
         args.f0method,
-        args.index_path,
-        args.index_rate,
         args.resample_sr,
         args.rms_mix_rate,
         args.protect,

@@ -82,8 +82,6 @@ default_batch_size = 1
 
 
 weight_root = Path(os.getenv("WEIGHT_ROOT", "assets/weights"))
-index_root = Path(os.getenv("INDEX_ROOT", "logs"))
-outside_index_root = Path(os.getenv("OUTSIDE_INDEX_ROOT", "assets/indices"))
 rmvpe_root = Path(os.getenv("RMVPE_ROOT", "assets/rmvpe"))
 
 names = []
@@ -91,18 +89,6 @@ for entry in weight_root.iterdir():
     logger.debug(f"Checking weight candidate {entry.name}")
     if entry.suffix == ".pth":
         names.append(entry.name)
-index_paths = [""]  # Fix for gradio 5
-
-
-def lookup_indices(root: Path) -> None:
-    # shared.index_paths
-    for index_file in root.rglob("*.index"):
-        if "trained" not in index_file.name:
-            index_paths.append(str(index_file))
-
-
-lookup_indices(index_root)
-lookup_indices(outside_index_root)
 
 sr_dict = {
     "32k": 32000,

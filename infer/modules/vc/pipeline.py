@@ -17,7 +17,6 @@ from time import time as ttime
 from fairseq.models.hubert.hubert import (
     HubertModel as FairseqHubertModel,
 )  # Renamed for clarity in this example
-import faiss
 import librosa
 import numpy as np
 import torch
@@ -126,9 +125,6 @@ class Pipeline:
         pitch: torch.Tensor | None,
         pitchf: torch.Tensor | None,
         times: list[float],
-        # index: faiss.Index | None,
-        # big_npy: np.ndarray | None,
-        # index_rate: float,
         version: Literal["v2", "v3"],
         protect: float,
     ) -> np.ndarray:  # ,file_index,file_big_npy
@@ -168,22 +164,6 @@ class Pipeline:
             # and not isinstance(big_npy, type(None))
             # and index_rate != 0
 
-        # if index is not None and big_npy is not None and index_rate != 0:
-        #     npy = feats[0].cpu().numpy()
-        #     if self.is_half:
-        #         npy = npy.astype("float32")
-
-        #     score, ix = index.search(npy, k=8)
-        #     weight = np.square(1 / score)
-        #     weight /= weight.sum(axis=1, keepdims=True)
-        #     npy = np.sum(big_npy[ix] * np.expand_dims(weight, axis=2), axis=1)
-
-        #     if self.is_half:
-        #         npy = npy.astype("float16")
-        #     feats = (
-        #         torch.from_numpy(npy).unsqueeze(0).to(self.device) * index_rate
-        #         + (1 - index_rate) * feats
-        #     )
 
         feats = F.interpolate(feats.permute(0, 2, 1), scale_factor=2).permute(0, 2, 1)
         if protect < 0.5 and pitch is not None and pitchf is not None:
@@ -230,8 +210,6 @@ class Pipeline:
         times: list[float],
         f0_up_key: int,
         f0_method: PitchMethod,
-        file_index: str,
-        index_rate: float,
         # filter_radius: int,
         tgt_sr: int,
         resample_sr: int,
@@ -243,27 +221,6 @@ class Pipeline:
     ) -> np.ndarray:
         progress(0.01, desc="Initializing...")  # Initial progress
 
-        if (
-            file_index != ""
-            # and file_big_npy != ""
-            # and os.path.exists(file_big_npy) == True
-            and Path(file_index).exists()
-            and index_rate != 0
-        ):
-            try:
-                loaded_index = faiss.read_index(file_index)
-                index: faiss.Index | None = loaded_index
-                # big_npy = np.load(file_big_npy)
-                big_npy: np.ndarray | None = loaded_index.reconstruct_n(  # type: ignore[missing-argument]
-                    0, loaded_index.ntotal
-                )
-            except:
-                traceback.print_exc()
-                index = None
-                big_npy = None
-        else:
-            index = None
-            big_npy = None
         audio = signal.filtfilt(bh, ah, audio)
         audio_pad = np.pad(audio, (self.window // 2, self.window // 2), mode="reflect")
         opt_ts = []
@@ -337,9 +294,6 @@ class Pipeline:
                     pitch[:, s // self.window : (t + self.t_pad2) // self.window],
                     pitchf[:, s // self.window : (t + self.t_pad2) // self.window],
                     times,
-                    # index,
-                    # big_npy,
-                    # index_rate,
                     version,
                     protect,
                 )[self.t_pad_tgt : -self.t_pad_tgt]
@@ -359,9 +313,6 @@ class Pipeline:
                 pitch[:, t // self.window :] if t is not None else pitch,
                 pitchf[:, t // self.window :] if t is not None else pitchf,
                 times,
-                # index,
-                # big_npy,
-                # index_rate,
                 version,
                 protect,
             )[self.t_pad_tgt : -self.t_pad_tgt]

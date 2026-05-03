@@ -82,13 +82,10 @@ class VC:
 
     def get_vc(
         self: "VC", sid: str | None, *to_return_protect: float
-    ) -> tuple[Mapping[str, object], object] | tuple[Mapping[str, object], str, str]:
+    ) -> tuple[Mapping[str, object]]:
         if sid is None or sid == "":
             logger.warning("No SID")
-            return (
-                {"visible": True, "value": 0.5, "__type__": "update"},
-                {"choices": [], "value": "", "__type__": "update"},
-            )
+            return ({"visible": True, "value": 0.5, "__type__": "update"},)
         # self.pipeline
         logger.info(f"Get sid: {sid}")
 
@@ -121,8 +118,6 @@ class VC:
                     "value": to_return_protect0,
                     "__type__": "update",
                 },
-                "",
-                "",
             )
         person = shared.weight_root / sid
         logger.info(f"Loading: {person}")
@@ -156,15 +151,10 @@ class VC:
 
         self.pipeline = Pipeline(synthesizer_target_sr(self.cpt["config"]), self.config)
         # n_spk = self.cpt["config"][-3]
-        index = {"value": get_index_path_from_model(sid), "__type__": "update"}
-        logger.info(f"Select index: {index['value']}")
         res = (
-            (
-                to_return_protect0,
-                index,
-            )
+            (to_return_protect0,)
             # if to_return_protect
-            # else {"visible": True, "maximum": n_spk, "__type__": "update"}
+            # else {"visible": True, "__type__": "update"}
         )
         logger.info(f"Result {res}")
 
@@ -175,8 +165,6 @@ class VC:
         sr_and_audio: tuple[int, np.ndarray] | None,
         f0_up_key: int,
         f0_method: PitchMethod,
-        file_index: str | None,  # Path to .index file from dropdown
-        index_rate: float,
         resample_sr: int,  # Target sample rate
         rms_mix_rate: float,
         protect: float,
@@ -186,7 +174,6 @@ class VC:
             return "Model not loaded. Please select a valid SID.", None
         if self.version not in {"v2", "v3"}:
             raise ValueError("Only v2/v3 models with f0 are supported.")
-        file_index = None
         f0_file = None
         sid = 0
         filter_radius = 3
@@ -208,8 +195,6 @@ class VC:
             times = [0.0, 0.0, 0.0]
             if self.hubert_model is None:
                 self.hubert_model = load_hubert(self.config)
-            if file_index is None:
-                file_index = ""
 
             audio_opt: np.ndarray = self.pipeline.pipeline(
                 model=self.hubert_model,
@@ -220,8 +205,6 @@ class VC:
                 times=times,
                 f0_up_key=f0_up_key,
                 f0_method=f0_method,
-                file_index=file_index,
-                index_rate=index_rate,
                 # filter_radius=filter_radius,
                 tgt_sr=tgt_sr,
                 resample_sr=resample_sr,
@@ -233,13 +216,8 @@ class VC:
             )
             if self.tgt_sr != resample_sr >= 16000:
                 tgt_sr = resample_sr
-            index_info = (
-                f"Using Index: \n{file_index}"
-                if (file_index != "" and Path(file_index).exists())
-                else "Index not used."
-            )
             return (
-                f"Success.\n{index_info}\nTime:\nnpy: {times[0]:.2f}s, f0: {times[1]:.2f}s, infer: {times[2]:.2f}s.",
+                f"Success.\nTime:\nnpy: {times[0]:.2f}s, f0: {times[1]:.2f}s, infer: {times[2]:.2f}s.",
                 (tgt_sr, audio_opt),
             )
         except:

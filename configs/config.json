@@ -1,6 +1,5 @@
 {
     "pth_path": "assets/weights/kikiV1.pth",
-    "index_path": "logs/kikiV1.index",
     "sg_hostapi": "MME",
     "sg_wasapi_exclusive": false,
     "sg_input_device": "VoiceMeeter Output (VB-Audio Vo",
@@ -10,7 +9,6 @@
     "pitch": 12.0,
     "formant": 0.0,
     "rms_mix_rate": 0.5,
-    "index_rate": 0.0,
     "block_time": 0.15,
     "crossfade_length": 0.08,
     "extra_time": 2.0,
