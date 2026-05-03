@@ -9,6 +9,7 @@ from typing import Literal, Protocol, cast
 
 import numpy as np
 import torch
+from torch import nn
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict
 from scipy.io.wavfile import read
@@ -59,7 +60,11 @@ class TrainArgs(Tap):
 
 
 def load_checkpoint_d(
-    checkpoint_path: Path, combd, sbd, optimizer=None, load_opt: int = 1
+    checkpoint_path: Path,
+    combd: nn.Module,
+    sbd: nn.Module,
+    optimizer=None,
+    load_opt: int = 1,
 ):
     assert checkpoint_path.is_file()
     checkpoint_dict = torch.load(
@@ -67,10 +72,11 @@ def load_checkpoint_d(
     )
 
     ##################
-    def go(model, bkey):
+    def go(model: nn.Module, bkey: str) -> nn.Module:
         saved_state_dict = checkpoint_dict[bkey]
         if hasattr(model, "module"):
-            state_dict = model.module.state_dict()
+            # state_dict = model.module.state_dict()
+            raise NotImplementedError
         else:
             state_dict = model.state_dict()
         new_state_dict = {}
@@ -86,7 +92,8 @@ def load_checkpoint_d(
                 logger.info(f"{k} is not in the checkpoint")
                 new_state_dict[k] = v  # Random values provided by the model
         if hasattr(model, "module"):
-            model.module.load_state_dict(new_state_dict, strict=False)
+            # model.module.load_state_dict(new_state_dict, strict=False)
+            raise NotImplementedError
         else:
             model.load_state_dict(new_state_dict, strict=False)
         return model
@@ -109,35 +116,6 @@ def load_checkpoint_d(
     return model, optimizer, learning_rate, iteration
 
 
-# def load_checkpoint(checkpoint_path, model, optimizer=None):
-#   assert os.path.isfile(checkpoint_path)
-#   checkpoint_dict = torch.load(checkpoint_path, map_location='cpu')
-#   iteration = checkpoint_dict['iteration']
-#   learning_rate = checkpoint_dict['learning_rate']
-#   if optimizer is not None:
-#     optimizer.load_state_dict(checkpoint_dict['optimizer'])
-#   # print(1111)
-#   saved_state_dict = checkpoint_dict['model']
-#   # print(1111)
-#
-#   if hasattr(model, 'module'):
-#     state_dict = model.module.state_dict()
-#   else:
-#     state_dict = model.state_dict()
-#   new_state_dict= {}
-#   for k, v in state_dict.items():
-#     try:
-#       new_state_dict[k] = saved_state_dict[k]
-#     except:
-#       logger.info("%s is not in the checkpoint" % k)
-#       new_state_dict[k] = v
-#   if hasattr(model, 'module'):
-#     model.module.load_state_dict(new_state_dict)
-#   else:
-#     model.load_state_dict(new_state_dict)
-#   logger.info("Loaded checkpoint '{}' (epoch {})" .format(
-#     checkpoint_path, iteration))
-#   return model, optimizer, learning_rate, iteration
 def load_checkpoint(checkpoint_path: Path, model, optimizer=None, load_opt: int = 1):
     assert checkpoint_path.is_file()
     checkpoint_dict = torch.load(
