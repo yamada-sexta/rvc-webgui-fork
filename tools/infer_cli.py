@@ -16,24 +16,24 @@ from lib.f0 import PitchMethod
 
 
 class InferArgs(Tap):
-    # Pitch shift in semitones.
-    f0up_key: int = 0
-    # Input audio path.
-    input_path: str
-    # F0 extraction method.
-    f0method: PitchMethod = "harvest"
-    # Output audio path.
-    opt_path: str
-    # Model name stored in assets/weights.
-    model_name: str
-    # Median filter radius for extracted pitch.
-    filter_radius: int = 3
-    # Resample output sample rate, or 0 to keep model rate.
-    resample_sr: int = 0
-    # RMS envelope mix rate.
-    rms_mix_rate: float = 1
-    # Protect unvoiced consonants.
-    protect: float = 0.33
+
+    f0up_key: int = 0  # Pitch shift in semitones.
+
+    input_path: Path  # Input audio path.
+
+    f0method: PitchMethod = "harvest"  # F0 extraction method.
+
+    opt_path: Path  # Output audio path.
+
+    model_name: str  # Model name stored in assets/weights.
+
+    filter_radius: int = 3  # Median filter radius for extracted pitch.
+
+    resample_sr: int = 0  # Resample output sample rate, or 0 to keep model rate.
+
+    rms_mix_rate: float = 1  # RMS envelope mix rate.
+
+    protect: float = 0.33  # Protect unvoiced consonants.
 
 
 def arg_parse() -> InferArgs:
