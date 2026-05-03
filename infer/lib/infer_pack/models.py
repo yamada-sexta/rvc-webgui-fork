@@ -1016,7 +1016,13 @@ class DiscriminatorS(torch.nn.Module):
 
 
 class DiscriminatorP(torch.nn.Module):
-    def __init__(self, period, kernel_size=5, stride=3, use_spectral_norm=False):
+    def __init__(
+        self,
+        period: int,
+        kernel_size: int = 5,
+        stride: int = 3,
+        use_spectral_norm: bool = False,
+    ) -> None:
         super(DiscriminatorP, self).__init__()
         self.period = period
         self.use_spectral_norm = use_spectral_norm
