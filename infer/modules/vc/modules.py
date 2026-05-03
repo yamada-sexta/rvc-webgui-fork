@@ -89,9 +89,15 @@ class VC:
         # self.pipeline
         logger.info(f"Get sid: {sid}")
 
+        val = to_return_protect[0] if to_return_protect else 0.5
+        if isinstance(val, (list, tuple)):
+            val = val[0]
+        if isinstance(val, dict):
+            val = val.get("value", 0.5)
+
         to_return_protect0 = {
             "visible": True,
-            "value": (to_return_protect[0] if to_return_protect else 0.5),
+            "value": val,
             "__type__": "update",
         }
 
@@ -112,13 +118,7 @@ class VC:
                 self.net_g = None
                 self.cpt = None
                 empty_cache()
-            return (
-                {
-                    "visible": True,
-                    "value": to_return_protect0,
-                    "__type__": "update",
-                },
-            )
+            return (to_return_protect0,)
         person = shared.weight_root / sid
         logger.info(f"Loading: {person}")
 
