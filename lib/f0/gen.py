@@ -1,4 +1,4 @@
-from __future__ import annotations
+from lib.f0.type import PitchMethod
 
 from functools import lru_cache
 from math import log
@@ -26,17 +26,6 @@ if TYPE_CHECKING:
     from infer.lib.rmvpe import RMVPE
 
 import torchcrepe
-
-PitchMethod = Literal["pm", "harvest", "crepe", "rmvpe", "fcpe", "dio"]
-PITCH_METHODS: list[PitchMethod] = ["pm", "harvest", "crepe", "rmvpe", "fcpe"]
-ALL_PITCH_METHODS: tuple[PitchMethod, ...] = (
-    "pm",
-    "harvest",
-    "crepe",
-    "rmvpe",
-    "fcpe",
-    "dio",
-)
 
 
 class FCPEModel(Protocol):

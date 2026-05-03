@@ -1,4 +1,4 @@
-from lib.f0 import PitchMethod
+from lib.f0.type import PitchMethod
 import traceback
 from pathlib import Path
 from typing import Mapping, cast

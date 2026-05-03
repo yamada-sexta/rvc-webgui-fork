@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 from scipy.io import wavfile
 from tap import Tap
 
-from lib.f0 import PitchMethod
+# from lib.f0 import PitchMethod
+from lib.f0.type import PitchMethod
 
 ####
 # USAGE

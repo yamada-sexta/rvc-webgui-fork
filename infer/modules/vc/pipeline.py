@@ -21,7 +21,7 @@ import torch
 import torch.nn.functional as F
 from scipy import signal
 
-from lib.f0 import Generator, PitchMethod
+from lib.f0.gen import Generator, PitchMethod
 from lib.accelerate_utils import device_string, empty_cache, use_half_precision
 
 now_dir = Path.cwd()
