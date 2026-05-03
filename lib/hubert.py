@@ -125,6 +125,7 @@ def get_hubert(
     model_path: Path = Path("assets/hubert/hubert_base.pt"),
     device: torch.device | None = None,
 ) -> HubertModelWrapper:
+    from lib.accelerate_utils import get_device, use_half_precision
     if device is None:
         device = get_device()
         
@@ -138,6 +139,18 @@ def get_hubert(
     hf_model = HubertModel(hf_config)
     load_model(hf_model, safetensors_path)
     
+    if use_half_precision():
+        try:
+            hf_model = hf_model.half()
+        except Exception as e:
+            print(
+                "Warning: could not convert HuBERT to half — keeping float32. Error:",
+                e,
+            )
+            hf_model = hf_model.float()
+    else:
+        hf_model = hf_model.float()
+
     hf_model = hf_model.to(device)
     wrapper = HubertModelWrapper(hf_model)
     return wrapper.eval()

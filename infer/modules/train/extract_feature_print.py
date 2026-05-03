@@ -113,10 +113,7 @@ logger.bind(
     message=f"HuBERT model loaded on {device}. Preparing feature extraction...",
 ).info("HuBERT model loaded")
 logger.info(f"Moved HuBERT model to {device}")
-if is_half:
-    if device.type != "cpu":
-        model = model.half()
-model.eval()
+
 
 todo = sorted(wavPath.iterdir(), key=lambda p: p.name)
 if len(todo) == 0:

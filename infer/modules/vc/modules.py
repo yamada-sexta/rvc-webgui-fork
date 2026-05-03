@@ -5,6 +5,7 @@ from typing import Mapping, cast
 import gradio as gr
 import resampy
 from loguru import logger
+import shared
 
 from configs.config import Config
 from lib.types import (
@@ -20,7 +21,7 @@ from infer.lib.infer_pack.models import (
     SynthesizerTrnMs768NSFsid,
 )
 from infer.modules.vc.pipeline import Pipeline
-from infer.modules.vc.utils import *
+
 from lib.accelerate_utils import empty_cache, get_device, use_half_precision
 
 
@@ -64,6 +65,7 @@ class VC:
         self.cpt: RvcCheckpoint | None = None
         self.version: str = "UNKNOWN"
         from lib.hubert import HubertModelWrapper
+
         self.hubert_model: HubertModelWrapper | None = None
         self.config: Config = config
 
@@ -203,7 +205,9 @@ class VC:
                 audio /= audio_max
             times = [0.0, 0.0, 0.0]
             if self.hubert_model is None:
-                self.hubert_model = load_hubert(self.config)
+                from lib.hubert import get_hubert
+
+                self.hubert_model = get_hubert()
             assert self.hubert_model is not None
 
             audio_opt: np.ndarray = self.pipeline.pipeline(
