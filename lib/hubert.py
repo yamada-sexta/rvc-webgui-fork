@@ -31,7 +31,7 @@ def pad_to_multiple(
     tsz = x.size(dim)
     m = tsz / multiple
     remainder = math.ceil(m) * multiple - tsz
-    if int(tsz % multiple) == 0:
+    if tsz % multiple == 0:
         return x, 0
     pad_offset = (0,) * (-1 - dim) * 2
 
