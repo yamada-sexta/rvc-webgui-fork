@@ -52,16 +52,6 @@ def singleton_class(cls: type[T]) -> type[T]:
     return cast(type[T], wrapper)
 
 
-# def singleton_variable(func):
-#     def wrapper(*args, **kwargs):
-#         if not wrapper.instance:
-#             wrapper.instance = func(*args, **kwargs)
-#         return wrapper.instance
-
-#     wrapper.instance = None
-#     return wrapper
-
-
 @singleton_class
 class Config:
     n_cpu: int
