@@ -21,7 +21,12 @@ from sklearn.cluster import MiniBatchKMeans
 
 import shared
 from configs.v3_config import get_v3_training_config
-from lib.json_validation import JsonLogPayload, LogEventName, ModelVersion, SampleRateName
+from lib.json_validation import (
+    JsonLogPayload,
+    LogEventName,
+    ModelVersion,
+    SampleRateName,
+)
 from shared import i18n
 
 ProgressComponent = gr.Progress
@@ -44,7 +49,9 @@ def read_json_log_records(log_path: pathlib.Path) -> list[JsonLogPayload]:
 
 
 def format_log_messages(records: list[JsonLogPayload]) -> str:
-    return "\n".join(record.record.message for record in records if record.record.message)
+    return "\n".join(
+        record.record.message for record in records if record.record.message
+    )
 
 
 def get_latest_event(
@@ -130,7 +137,7 @@ def preprocess_dataset(
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path.write_text("")
     cmd = [
-        str(shared.config.python_cmd),
+        shared.config.python_cmd,
         str(preprocess_script),
         "--inp_root",
         str(audio_dir_path),
@@ -245,13 +252,19 @@ def extract_f0_feature(
     records = read_json_log_records(log_path)
     log = format_log_messages(records)
     if p.wait() != 0:
-        yield "Feature extraction failed.\n" + log if log else "Feature extraction failed."
+        yield (
+            "Feature extraction failed.\n" + log
+            if log
+            else "Feature extraction failed."
+        )
         return
     logger.info(f"Feature extraction stage completed for {exp_dir}")
     yield log
 
 
-def get_pretrained_models(path_str: str, f0_str: str, sr2: SampleRate) -> tuple[str, str]:
+def get_pretrained_models(
+    path_str: str, f0_str: str, sr2: SampleRate
+) -> tuple[str, str]:
     if_pretrained_generator_exist = os.access(
         "assets/pretrained%s/%sG%s.pth" % (path_str, f0_str, sr2), os.F_OK
     )
@@ -295,15 +308,17 @@ def change_version_and_sr(
         )
     pretrained_g, pretrained_d = change_sr2(sr2 if sr2 != "44k" else "48k")
     return (
-        {"choices": ["32k", "48k"], "value": "48k" if sr2 == "44k" else sr2, "__type__": "update"},
+        {
+            "choices": ["32k", "48k"],
+            "value": "48k" if sr2 == "44k" else sr2,
+            "__type__": "update",
+        },
         pretrained_g,
         pretrained_d,
     )
 
 
-def change_pretrained_inputs(
-    version: ModelVersion, sr2: SampleRate
-) -> tuple[str, str]:
+def change_pretrained_inputs(version: ModelVersion, sr2: SampleRate) -> tuple[str, str]:
     if version == "v3":
         return "", ""
     return change_sr2(sr2)
@@ -500,8 +515,6 @@ def click_train(
     yield f"Training finished with exit code {return_code}.\n{summary}".strip()
 
 
-
-
 def create_train_tab() -> None:
 
     with gr.TabItem(i18n("Train")):
@@ -637,7 +650,9 @@ def create_train_tab() -> None:
                     )
                 with gr.Column():
                     train_btn = gr.Button(i18n("Train"), variant="primary")
-                    training_info = gr.Textbox(label=i18n("Info"), value="", max_lines=10)
+                    training_info = gr.Textbox(
+                        label=i18n("Info"), value="", max_lines=10
+                    )
 
             target_sr.change(
                 change_pretrained_inputs,
