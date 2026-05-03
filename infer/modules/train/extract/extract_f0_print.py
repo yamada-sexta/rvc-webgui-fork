@@ -23,10 +23,6 @@ class ExtractF0Args(Tap):
     # F0 extraction method.
     f0method: PitchMethod
 
-    def configure(self) -> None:
-        self.add_argument("exp_dir")
-        self.add_argument("n_p")
-        self.add_argument("f0method")
 
 
 args = ExtractF0Args().parse_args()

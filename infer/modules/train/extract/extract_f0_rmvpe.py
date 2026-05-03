@@ -19,8 +19,6 @@ class ExtractF0RmvpeArgs(Tap):
     # Experiment directory.
     exp_dir: Path
 
-    def configure(self) -> None:
-        self.add_argument("exp_dir")
 
 
 args = ExtractF0RmvpeArgs().parse_args()

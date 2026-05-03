@@ -132,13 +132,19 @@ def preprocess_dataset(
     cmd = [
         str(shared.config.python_cmd),
         str(preprocess_script),
+        "--inp_root",
         str(audio_dir_path),
+        "--sr",
         str(sr_hz),
+        "--n_p",
         str(shared.config.n_cpu),
+        "--exp_dir",
         str(log_dir),
-        str(shared.config.noparallel),
+        "--per",
         f"{shared.config.preprocess_per:.1f}",
     ]
+    if shared.config.noparallel:
+        cmd.append("--noparallel")
     logger.info(f"Execute: {shlex.join(cmd)}")
     p = subprocess.Popen(cmd, cwd=shared.now_dir)
     while True:
@@ -193,14 +199,18 @@ def extract_f0_feature(
         cmd = [
             shared.config.python_cmd,
             "infer/modules/train/extract/extract_f0_rmvpe.py",
+            "--exp_dir",
             str(log_dir),
         ]
     else:
         cmd = [
             shared.config.python_cmd,
             "infer/modules/train/extract/extract_f0_print.py",
+            "--exp_dir",
             str(log_dir),
+            "--n_p",
             str(shared.config.n_cpu),
+            "--f0method",
             f0method,
         ]
     logger.info(f"Execute: {shlex.join(cmd)}")
@@ -218,7 +228,9 @@ def extract_f0_feature(
     cmd = [
         shared.config.python_cmd,
         "infer/modules/train/extract_feature_print.py",
+        "--exp_dir",
         str(log_dir),
+        "--version",
         version,
     ]
     logger.info(f"Execute: {shlex.join(cmd)}")

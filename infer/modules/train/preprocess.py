@@ -18,12 +18,6 @@ from loguru import logger
 from infer.lib.audio import load_audio
 from infer.lib.slicer2 import Slicer
 
-BoolString = Literal["True", "False", "true", "false", "1", "0"]
-
-
-def parse_bool(value: BoolString) -> bool:
-    return value.lower() in {"true", "1"}
-
 
 class PreprocessArgs(Tap):
     # Input training audio directory.
@@ -35,17 +29,9 @@ class PreprocessArgs(Tap):
     # Experiment output directory.
     exp_dir: Path
     # Run without multiprocessing.
-    noparallel: BoolString
+    noparallel: bool = False
     # Maximum segment length in seconds.
     per: float
-
-    def configure(self) -> None:
-        self.add_argument("inp_root")
-        self.add_argument("sr")
-        self.add_argument("n_p")
-        self.add_argument("exp_dir")
-        self.add_argument("noparallel")
-        self.add_argument("per")
 
 
 args = PreprocessArgs().parse_args()
@@ -53,7 +39,7 @@ inp_root = args.inp_root
 sr = args.sr
 n_p = args.n_p
 exp_dir = args.exp_dir
-noparallel = parse_bool(args.noparallel)
+noparallel = args.noparallel
 per = args.per
 logger.remove()
 logger.add(
