@@ -1,3 +1,4 @@
+from typing import cast
 import os
 import sys
 import traceback
@@ -30,7 +31,9 @@ from lib.accelerate_utils import device_string, empty_cache, use_half_precision
 now_dir = Path.cwd()
 sys.path.append(str(now_dir))
 
-bh, ah = signal.butter(N=5, Wn=48, btype="high", fs=16000)  # type: ignore
+bh, ah = cast(
+    tuple[np.ndarray, np.ndarray], signal.butter(N=5, Wn=48, btype="high", fs=16000)
+)
 
 
 class NamedFile(Protocol):
@@ -309,8 +312,12 @@ class Pipeline:
         pitch_np = pitch_np[:p_len]
         pitchf_np = pitchf_np[:p_len]
         pitchf_np = pitchf_np.astype(np.float32)
-        pitch: torch.Tensor = torch.tensor(pitch_np, device=self.device).unsqueeze(0).long()
-        pitchf: torch.Tensor = torch.tensor(pitchf_np, device=self.device).unsqueeze(0).float()
+        pitch: torch.Tensor = (
+            torch.tensor(pitch_np, device=self.device).unsqueeze(0).long()
+        )
+        pitchf: torch.Tensor = (
+            torch.tensor(pitchf_np, device=self.device).unsqueeze(0).float()
+        )
         t2 = ttime()
         times[1] += t2 - t1
 
