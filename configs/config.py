@@ -30,7 +30,7 @@ class ConfigArgs(Tap):
     # Listen port.
     port: int = 7865
     # Python command used for subprocess workers.
-    pycmd: str = sys.executable or "python"
+    pycmd: str = sys.executable
     # Launch in colab.
     colab: bool = False
     # Disable parallel processing.
@@ -123,7 +123,7 @@ class Config:
             cmd_opts.noautoopen,
         )
 
-    def device_config(self) -> tuple:
+    def device_config(self) -> tuple[int, int, int, int]:
         accelerator = get_accelerator()
         device = accelerator.device
         if device.type != "cpu":
@@ -159,7 +159,5 @@ class Config:
             x_max = 32
         if self.instead:
             logger.info(f"Use {self.instead} instead")
-        logger.info(
-            f"Half-precision floating-point: {is_half}, device: {device}"
-        )
+        logger.info(f"Half-precision floating-point: {is_half}, device: {device}")
         return x_pad, x_query, x_center, x_max
