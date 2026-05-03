@@ -43,7 +43,7 @@ class TextEncoder(nn.Module):
         self.n_heads = n_heads
         self.n_layers = n_layers
         self.kernel_size = kernel_size
-        self.p_dropout = float(p_dropout)
+        self.p_dropout = p_dropout
         self.emb_phone = nn.Linear(in_channels, hidden_channels)
         self.lrelu = nn.LeakyReLU(0.1, inplace=True)
         if f0 == True:
@@ -54,7 +54,7 @@ class TextEncoder(nn.Module):
             n_heads,
             n_layers,
             kernel_size,
-            float(p_dropout),
+            p_dropout,
         )
         self.proj = nn.Conv1d(hidden_channels, out_channels * 2, 1)
 
@@ -473,14 +473,15 @@ class GeneratorNSF(torch.nn.Module):
                 self.noise_convs.append(Conv1d(1, c_cur, kernel_size=1))
 
         self.resblocks = nn.ModuleList()
-        ch = 0
+        ch: int | None = None
         for i in range(len(self.ups)):
             ch = upsample_initial_channel // (2 ** (i + 1))
             for j, (k, d) in enumerate(
                 zip(resblock_kernel_sizes, resblock_dilation_sizes)
             ):
                 self.resblocks.append(resblock_cls(ch, k, d))
-
+        if ch is None:
+            raise ValueError("ch is None")
         self.conv_post = Conv1d(ch, 1, 7, 1, padding=3, bias=False)
         self.ups.apply(init_weights)
 
