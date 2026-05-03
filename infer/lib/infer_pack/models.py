@@ -261,7 +261,7 @@ class Generator(torch.nn.Module):
         x: torch.Tensor,
         g: torch.Tensor | None = None,
         n_res: torch.Tensor | None = None,
-    ):
+    ) -> torch.Tensor:
         if n_res is not None:
             assert isinstance(n_res, torch.Tensor)
             n = int(n_res.item())
@@ -335,13 +335,13 @@ class SineGen(torch.nn.Module):
 
     def __init__(
         self,
-        samp_rate,
-        harmonic_num=0,
-        sine_amp=0.1,
-        noise_std=0.003,
-        voiced_threshold=0,
-        flag_for_pulse=False,
-    ):
+        samp_rate: int,
+        harmonic_num: int = 0,
+        sine_amp: float = 0.1,
+        noise_std: float = 0.003,
+        voiced_threshold: float = 0,
+        flag_for_pulse: bool = False,
+    ) -> None:
         super(SineGen, self).__init__()
         self.sine_amp = sine_amp
         self.noise_std = noise_std
@@ -418,13 +418,13 @@ class SourceModuleHnNSF(torch.nn.Module):
 
     def __init__(
         self,
-        sampling_rate,
-        harmonic_num=0,
-        sine_amp=0.1,
-        add_noise_std=0.003,
-        voiced_threshod=0,
-        is_half=True,
-    ):
+        sampling_rate: int,
+        harmonic_num: int = 0,
+        sine_amp: float = 0.1,
+        add_noise_std: float = 0.003,
+        voiced_threshod: float = 0,
+        is_half: bool = True,
+    ) -> None:
         super(SourceModuleHnNSF, self).__init__()
 
         self.sine_amp = sine_amp
@@ -460,17 +460,17 @@ class SourceModuleHnNSF(torch.nn.Module):
 class GeneratorNSF(torch.nn.Module):
     def __init__(
         self,
-        initial_channel,
-        resblock,
-        resblock_kernel_sizes,
-        resblock_dilation_sizes,
-        upsample_rates,
-        upsample_initial_channel,
-        upsample_kernel_sizes,
-        gin_channels,
-        sr,
-        is_half=False,
-    ):
+        initial_channel: int,
+        resblock: str,
+        resblock_kernel_sizes: Sequence[int],
+        resblock_dilation_sizes: Sequence[Sequence[int]],
+        upsample_rates: Sequence[int],
+        upsample_initial_channel: int,
+        upsample_kernel_sizes: Sequence[int],
+        gin_channels: int,
+        sr: int,
+        is_half: bool = False,
+    ) -> None:
         super(GeneratorNSF, self).__init__()
         self.num_kernels = len(resblock_kernel_sizes)
         self.num_upsamples = len(upsample_rates)
@@ -533,11 +533,11 @@ class GeneratorNSF(torch.nn.Module):
 
     def forward(
         self,
-        x,
-        f0,
+        x: torch.Tensor,
+        f0: torch.Tensor,
         g: torch.Tensor | None = None,
         n_res: torch.Tensor | None = None,
-    ):
+    ) -> torch.Tensor:
         har_source, noi_source, uv = self.m_source(f0, self.upp)
         har_source = har_source.transpose(1, 2)
         if n_res is not None:
@@ -741,7 +741,20 @@ class SynthesizerTrnMs256NSFsid(nn.Module):
         y: torch.Tensor,
         y_lengths: torch.Tensor,
         ds: torch.Tensor | None = None,
-    ):  # Here ds is the id, [bs,1]
+    ) -> tuple[
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        tuple[
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+        ],
+    ]:  # Here ds is the id, [bs,1]
         # print(1,pitch.shape)#[bs,t]
         g = self.emb_g(ds).unsqueeze(-1)  # [b, 256, 1]## 1 is t, broadcasted
         m_p, logs_p, x_mask = self.enc_p(phone, pitch, phone_lengths)
@@ -767,7 +780,9 @@ class SynthesizerTrnMs256NSFsid(nn.Module):
         skip_head: torch.Tensor | None = None,
         return_length: torch.Tensor | None = None,
         return_length2: torch.Tensor | None = None,
-    ):
+    ) -> tuple[
+        torch.Tensor, torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
+    ]:
         g = self.emb_g(sid).unsqueeze(-1)
         if skip_head is not None and return_length is not None:
             assert isinstance(skip_head, torch.Tensor)
