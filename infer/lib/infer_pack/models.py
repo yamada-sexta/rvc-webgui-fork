@@ -142,7 +142,6 @@ class ResidualCouplingBlock(nn.Module):
             flow.remove_weight_norm()
 
 
-
 class PosteriorEncoder(nn.Module):
     def __init__(
         self,
@@ -188,7 +187,6 @@ class PosteriorEncoder(nn.Module):
 
     def remove_weight_norm(self) -> None:
         self.enc.remove_weight_norm()
-
 
 
 class Generator(torch.nn.Module):
@@ -270,7 +268,6 @@ class Generator(torch.nn.Module):
         x = torch.tanh(x)
 
         return x
-
 
     def remove_weight_norm(self) -> None:
         for l in self.ups:
@@ -476,6 +473,7 @@ class GeneratorNSF(torch.nn.Module):
                 self.noise_convs.append(Conv1d(1, c_cur, kernel_size=1))
 
         self.resblocks = nn.ModuleList()
+        ch = 0
         for i in range(len(self.ups)):
             ch = upsample_initial_channel // (2 ** (i + 1))
             for j, (k, d) in enumerate(
@@ -483,7 +481,7 @@ class GeneratorNSF(torch.nn.Module):
             ):
                 self.resblocks.append(resblock_cls(ch, k, d))
 
-        self.conv_post = Conv1d(ch, 1, 7, 1, padding=3, bias=False)  # type: ignore[unbound-name]
+        self.conv_post = Conv1d(ch, 1, 7, 1, padding=3, bias=False)
         self.ups.apply(init_weights)
 
         if gin_channels != 0:
@@ -539,7 +537,6 @@ class GeneratorNSF(torch.nn.Module):
             remove_weight_norm(l)
         for l in self.resblocks:
             l.remove_weight_norm()
-
 
 
 sr2sr = {
@@ -641,7 +638,6 @@ class SynthesizerTrnMs768NSFsid(nn.Module):
         self.flow.remove_weight_norm()
         if hasattr(self, "enc_q"):
             self.enc_q.remove_weight_norm()
-
 
     def forward(
         self,
