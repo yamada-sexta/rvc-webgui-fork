@@ -88,11 +88,13 @@ def is_skip_update(value: object) -> bool:
 
 
 def preprocess_dataset(
-    audio_dir: Path,
-    exp_dir: Path,
+    audio_dir: Path | str,
+    exp_dir: Path | str,
     sr: SampleRate,
     progress: gr.Progress = gr.Progress(),
 ) -> Generator[str, None, None]:
+    audio_dir = Path(audio_dir)
+    exp_dir = Path(exp_dir)
     log_dir = pathlib.Path(shared.now_dir) / "logs" / exp_dir
     log_path = log_dir / "preprocess.log"
     preprocess_script = pathlib.Path("infer/modules/train/preprocess.py")
@@ -168,11 +170,12 @@ def preprocess_dataset(
 
 def preprocess_meta(
     experiment_name: str,
-    audio_dir: Path,
+    audio_dir: Path | str,
     audio_files: list[Path] | None,
     sr: SampleRate,
     progress: gr.Progress = gr.Progress(),
 ) -> Generator[str, None, None]:
+    audio_dir = Path(audio_dir)
     save_dir = audio_dir / experiment_name
     save_dir.mkdir(parents=True, exist_ok=True)
 
@@ -193,11 +196,11 @@ def preprocess_meta(
 
 def extract_f0_feature(
     f0method: PitchExtractionMethod,
-    exp_dir: Path,
+    experiment_name: str,
     version: ModelVersion = "v2",
     progress: gr.Progress = gr.Progress(),
 ) -> Generator[str, None, None]:
-    log_dir = exp_dir / "logs"
+    log_dir = pathlib.Path(shared.now_dir) / "logs" / experiment_name
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "extract_f0_feature.log"
     log_path.write_text("")
@@ -257,11 +260,13 @@ def extract_f0_feature(
             else "Feature extraction failed."
         )
         return
-    logger.info(f"Feature extraction stage completed for {exp_dir}")
+    logger.info(f"Feature extraction stage completed for {experiment_name}")
     yield log
 
 
-def get_pretrained_models(path: Path, f0_str: str, sr2: SampleRate) -> tuple[str, str]:
+def get_pretrained_models(
+    path: Path, f0_str: str, sr2: SampleRate
+) -> tuple[Path | None, Path | None]:
     pretrained_dir = Path("assets") / f"pretrained{path}"
     generator_path = pretrained_dir / f"{f0_str}G{sr2}.pth"
     discriminator_path = pretrained_dir / f"{f0_str}D{sr2}.pth"
@@ -278,31 +283,23 @@ def get_pretrained_models(path: Path, f0_str: str, sr2: SampleRate) -> tuple[str
             f"{discriminator_path.as_posix()} does not exist, so the pretrained discriminator will not be used"
         )
     return (
-        (
-            generator_path.as_posix()
-            if if_pretrained_generator_exist
-            else ""
-        ),
-        (
-            discriminator_path.as_posix()
-            if if_pretrained_discriminator_exist
-            else ""
-        ),
+        generator_path if if_pretrained_generator_exist else None,
+        discriminator_path if if_pretrained_discriminator_exist else None,
     )
 
 
-def change_sr2(sr2: SampleRate) -> tuple[str, str]:
+def change_sr2(sr2: SampleRate) -> tuple[Path | None, Path | None]:
     return get_pretrained_models(Path("_v2"), "f0", sr2)
 
 
 def change_version_and_sr(
     version: ModelVersion, sr2: SampleRate
-) -> tuple[dict[str, object], str, str]:
+) -> tuple[dict[str, object], Path | None, Path | None]:
     if version == "v3":
         return (
             {"choices": ["44k"], "value": "44k", "__type__": "update"},
-            "",
-            "",
+            None,
+            None,
         )
     pretrained_g, pretrained_d = change_sr2(sr2 if sr2 != "44k" else "48k")
     return (
@@ -316,9 +313,11 @@ def change_version_and_sr(
     )
 
 
-def change_pretrained_inputs(version: ModelVersion, sr2: SampleRate) -> tuple[str, str]:
+def change_pretrained_inputs(
+    version: ModelVersion, sr2: SampleRate
+) -> tuple[Path | None, Path | None]:
     if version == "v3":
-        return "", ""
+        return None, None
     return change_sr2(sr2)
 
 
@@ -370,8 +369,8 @@ def click_train(
     total_epoch11: int,
     batch_size12: int,
     if_save_latest13: str,
-    pretrained_G14: str,
-    pretrained_D15: str,
+    pretrained_G14: Path | None,
+    pretrained_D15: Path | None,
     if_save_every_weights18: str,
     progress: gr.Progress = gr.Progress(),
 ) -> Generator[str, None, None]:
@@ -446,9 +445,9 @@ def click_train(
         f.write("\n".join(opt))
     logger.debug("Write filelist done")
     logger.info("Training device is managed by Hugging Face Accelerate")
-    if pretrained_G14 == "":
+    if pretrained_G14 is None:
         logger.info("No pretrained Generator")
-    if pretrained_D15 == "":
+    if pretrained_D15 is None:
         logger.info("No pretrained Discriminator")
     config_save_path = exp_dir / "config.json"
     if version19 == "v2" and not config_save_path.exists():
@@ -484,10 +483,10 @@ def click_train(
         "-v",
         version19,
     ]
-    if pretrained_G14 != "":
-        cmd.extend(["-pg", pretrained_G14])
-    if pretrained_D15 != "":
-        cmd.extend(["-pd", pretrained_D15])
+    if pretrained_G14 is not None:
+        cmd.extend(["-pg", str(pretrained_G14)])
+    if pretrained_D15 is not None:
+        cmd.extend(["-pd", str(pretrained_D15)])
     logger.info(f"Execute: {shlex.join(cmd)}")
     train_log_path = exp_dir / "train.log"
     p = subprocess.Popen(cmd, cwd=shared.now_dir, stdout=subprocess.PIPE, text=True)

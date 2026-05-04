@@ -37,3 +37,4 @@ ffprobe.*
 /.env
 
 /docker-cache
+*.log
