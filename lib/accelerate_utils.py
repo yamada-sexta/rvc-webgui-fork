@@ -1,6 +1,4 @@
-from typing import Protocol
 from functools import lru_cache
-from typing import Any
 
 import torch
 from accelerate import Accelerator
