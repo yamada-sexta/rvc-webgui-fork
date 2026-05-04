@@ -310,7 +310,9 @@ def get_hparams() -> "HParams":
             win_length=config.data.win_length,
             n_mel_channels=config.data.n_mel_channels,
             mel_fmin=config.data.mel_fmin,
+            mel_fmax=config.data.mel_fmax,
             training_files=experiment_dir / "filelist.csv",
+        ),
         model=ModelHParams(
             inter_channels=config.model.inter_channels,
             hidden_channels=config.model.hidden_channels,
