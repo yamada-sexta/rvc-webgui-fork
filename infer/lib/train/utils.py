@@ -1,3 +1,4 @@
+import pandas as pd
 import json
 from configs.v2_config import V2TrainingConfig
 import os
@@ -232,25 +233,19 @@ def load_wav_to_torch(full_path: Path) -> tuple[torch.FloatTensor, int]:
 
 
 def load_filepaths_and_text(
-    filename: Path, split: str = "|"
+    filename: Path,
 ) -> list[tuple[Path, Path, Path, Path, str]]:
-    try:
-        with open(filename, encoding="utf-8") as f:
-            lines = f.readlines()
-    except UnicodeDecodeError:
-        with open(filename) as f:
-            lines = f.readlines()
-
+    df = pd.read_csv(filename)
     res: list[tuple[Path, Path, Path, Path, str]] = []
-    for line in lines:
-        parts = line.strip().split(split)
-        if len(parts) != 5:
-            raise ValueError(
-                f"Expected 5 pipe-separated fields (audiopath|phone|pitch|pitchf|dv) "
-                f"in {filename}, got {len(parts)}: {line.strip()!r}"
-            )
+    for _, row in df.iterrows():
         res.append(
-            (Path(parts[0]), Path(parts[1]), Path(parts[2]), Path(parts[3]), parts[4])
+            (
+                Path(row["wav_path"]),
+                Path(row["npy_path"]),
+                Path(row["f0_path"]),
+                Path(row["f0nsf_path"]),
+                str(row["speaker_id"]),
+            )
         )
 
     return res
@@ -315,9 +310,7 @@ def get_hparams() -> "HParams":
             win_length=config.data.win_length,
             n_mel_channels=config.data.n_mel_channels,
             mel_fmin=config.data.mel_fmin,
-            mel_fmax=config.data.mel_fmax,
-            training_files=experiment_dir / "filelist.txt",
-        ),
+            training_files=experiment_dir / "filelist.csv",
         model=ModelHParams(
             inter_channels=config.model.inter_channels,
             hidden_channels=config.model.hidden_channels,

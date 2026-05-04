@@ -1,3 +1,4 @@
+import pandas as pd
 from configs.config import get_config
 import dataclasses
 import datetime
@@ -413,38 +414,31 @@ def click_train(
             "`0_gt_wavs`, `3_feature768`, `2a_f0`, and `2b-f0nsf`."
         )
         return
-    opt = []
+    data = []
     for name in names:
-        opt.append(
-            "%s/%s.wav|%s/%s.npy|%s/%s.wav.npy|%s/%s.wav.npy|%s"
-            % (
-                str(gt_wavs_dir).replace("\\", "\\\\"),
-                name,
-                str(feature_dir).replace("\\", "\\\\"),
-                name,
-                str(f0_dir).replace("\\", "\\\\"),
-                name,
-                str(f0nsf_dir).replace("\\", "\\\\"),
-                name,
-                spk_id5,
-            )
+        data.append(
+            {
+                "wav_path": gt_wavs_dir / f"{name}.wav",
+                "npy_path": feature_dir / f"{name}.npy",
+                "f0_path": f0_dir / f"{name}.wav.npy",
+                "f0nsf_path": f0nsf_dir / f"{name}.wav.npy",
+                "speaker_id": spk_id5,
+            }
         )
     for _ in range(2):
-        opt.append(
-            "%s/logs/mute/0_gt_wavs/mute%s.wav|%s/logs/mute/3_feature768/mute.npy|%s/logs/mute/2a_f0/mute.wav.npy|%s/logs/mute/2b-f0nsf/mute.wav.npy|%s"
-            % (
-                shared.now_dir,
-                sr2,
-                shared.now_dir,
-                shared.now_dir,
-                shared.now_dir,
-                spk_id5,
-            )
+        data.append(
+            {
+                "wav_path": Path(shared.now_dir) / "logs" / "mute" / "0_gt_wavs" / f"mute{sr2}.wav",
+                "npy_path": Path(shared.now_dir) / "logs" / "mute" / "3_feature768" / "mute.npy",
+                "f0_path": Path(shared.now_dir) / "logs" / "mute" / "2a_f0" / "mute.wav.npy",
+                "f0nsf_path": Path(shared.now_dir) / "logs" / "mute" / "2b-f0nsf" / "mute.wav.npy",
+                "speaker_id": spk_id5,
+            }
         )
-    shuffle(opt)
-    with open(exp_dir / "filelist.txt", "w") as f:
-        f.write("\n".join(opt))
-    logger.debug("Write filelist done")
+    df = pd.DataFrame(data)
+    df = df.sample(frac=1).reset_index(drop=True)
+    df.to_csv(exp_dir / "filelist.csv", index=False)
+    logger.debug("Write filelist.csv done")
     logger.info("Training device is managed by Hugging Face Accelerate")
     if pretrained_G14 is None:
         logger.info("No pretrained Generator")
