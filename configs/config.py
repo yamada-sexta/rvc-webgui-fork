@@ -55,10 +55,10 @@ class ConfigData:
     python_cmd: str
     listen_port: int
     is_colab: bool
-    noparallel: bool
-    noautoopen: bool
+    no_parallel: bool
+    # no_auto_open: bool
 
-    instead: str
+    # instead: str
     preprocess_per: float
     x_pad: int
     x_query: int
@@ -135,9 +135,9 @@ def get_config() -> ConfigData:
         python_cmd=args.pycmd,
         listen_port=args.port,
         is_colab=args.colab,
-        noparallel=args.noparallel,
-        noautoopen=args.noautoopen,
-        instead=instead,
+        no_parallel=args.noparallel,
+        # no_auto_open=args.noautoopen,
+        # instead=instead,
         preprocess_per=preprocess_per,
         x_pad=x_pad,
         x_query=x_query,

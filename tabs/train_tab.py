@@ -153,7 +153,7 @@ def preprocess_dataset(
         "--per",
         f"{get_config().preprocess_per:.1f}",
     ]
-    if get_config().noparallel:
+    if get_config().no_parallel:
         cmd.append("--noparallel")
     logger.info(f"Execute: {shlex.join(cmd)}")
     p = subprocess.Popen(cmd, cwd=shared.now_dir)
