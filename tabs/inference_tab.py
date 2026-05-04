@@ -81,13 +81,15 @@ def create_inference_tab(app: gr.Blocks) -> None:
                         if not audio_data:
                             return {"interactive": False, "value": None, "__type__": "update"}
                         try:
+                            import tempfile
+                            
                             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
                             model_name_clean = Path(model_name).stem if model_name else "model"
                             filename = f"{model_name_clean}_{timestamp}.wav"
 
-                            output_dir = Path("output")
-                            output_dir.mkdir(exist_ok=True)
-                            file_path = output_dir / filename
+                            temp_dir = Path(tempfile.gettempdir())
+                            logger.info(f"Generated temp file for download at: {temp_dir}")
+                            file_path = temp_dir / filename
 
                             if isinstance(audio_data, str):
                                 shutil.copy2(audio_data, file_path)
