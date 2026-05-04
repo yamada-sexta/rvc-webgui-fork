@@ -88,8 +88,8 @@ def create_inference_tab(app: gr.Blocks) -> None:
                             filename = f"{model_name_clean}_{timestamp}.wav"
 
                             temp_dir = Path(tempfile.gettempdir())
-                            logger.info(f"Generated temp file for download at: {temp_dir}")
                             file_path = temp_dir / filename
+                            logger.info(f"Generated temp file for download at: {file_path}")
 
                             if isinstance(audio_data, str):
                                 shutil.copy2(audio_data, file_path)
