@@ -1,3 +1,4 @@
+from configs.config import get_config
 import logging
 
 # Set logging levels for noisy modules
@@ -44,7 +45,7 @@ with gr.Blocks(title="RVC WebUI Fork") as gradio_app:
         create_ckpt_processing_tab()
 
 # Handle launch based on environment
-if shared.config.iscolab:
+if get_config().is_colab:
     # For Colab, launch directly with Gradio
     gradio_app.queue(max_size=1022).launch(share=True)
 else:
@@ -95,13 +96,13 @@ else:
     logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
     logging.getLogger("fastapi").setLevel(logging.WARNING)
 
-    logger.info(f"Listening on http://0.0.0.0:{shared.config.listen_port}")
+    logger.info(f"Listening on http://0.0.0.0:{get_config().listen_port}")
 
     # Run the server
     uvicorn.run(
         fastapi_app,
         host="0.0.0.0",
-        port=shared.config.listen_port,
+        port=get_config().listen_port,
         log_level="warning",
         access_log=False,
     )

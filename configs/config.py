@@ -1,3 +1,5 @@
+from functools import lru_cache
+from dataclasses import dataclass
 import os
 import sys
 import json
@@ -5,7 +7,7 @@ import shutil
 from multiprocessing import cpu_count
 from functools import wraps
 from typing import Literal, TypeAlias, TypeVar, cast
-
+from pathlib import Path
 from tap import Tap
 from loguru import logger
 
@@ -16,7 +18,6 @@ from configs.v2_config import (
     V2TrainConfig,
     V2TrainingConfig,
 )
-
 
 VersionConfigPath: TypeAlias = Literal["v2/48k.json", "v2/32k.json"]
 
@@ -44,21 +45,8 @@ class ConfigArgs(Tap):
     noautoopen: bool = False
 
 
-_singleton_instances: dict[type[object], object] = {}
-
-
-def singleton_class(cls: type[T]) -> type[T]:
-    @wraps(cls)
-    def wrapper(*args: object, **kwargs: object) -> T:
-        if cls not in _singleton_instances:
-            _singleton_instances[cls] = cls(*args, **kwargs)
-        return cast(T, _singleton_instances[cls])
-
-    return cast(type[T], wrapper)
-
-
-@singleton_class
-class Config:
+@dataclass(frozen=True, slots=True)
+class ConfigData:
     n_cpu: int
     gpu_name: str | None
     json_config: dict[str, VersionConfig]
@@ -66,7 +54,7 @@ class Config:
 
     python_cmd: str
     listen_port: int
-    iscolab: bool
+    is_colab: bool
     noparallel: bool
     noautoopen: bool
 
@@ -77,83 +65,82 @@ class Config:
     x_center: int
     x_max: int
 
-    def __init__(self):
-        accelerator = get_accelerator()
-        self.n_cpu: int = 0
-        self.gpu_name: str | None = None
-        self.json_config: dict[str, VersionConfig] = self.load_config_json()
-        self.gpu_mem: int | None = None
-        (
-            self.python_cmd,
-            self.listen_port,
-            self.iscolab,
-            self.noparallel,
-            self.noautoopen,
-        ) = self.arg_parse()
-        self.instead: str = ""
-        self.preprocess_per: float = 3.7
-        self.x_pad, self.x_query, self.x_center, self.x_max = self.device_config()
 
-    @staticmethod
-    def load_config_json() -> dict[str, VersionConfig]:
-        d: dict[str, VersionConfig] = {}
-        for config_file in version_config_list:
-            p = f"configs/inuse/{config_file}"
-            if not os.path.exists(p):
-                shutil.copy(f"configs/{config_file}", p)
-            with open(f"configs/inuse/{config_file}", "r") as f:
-                data_dict = json.load(f)
-                d[config_file] = V2TrainingConfig.from_dict(data_dict)
-        return d
+def load_config_json() -> dict[str, VersionConfig]:
+    d: dict[str, VersionConfig] = {}
+    for config_file in version_config_list:
+        # p = f"configs/inuse/{config_file}"
+        path = Path("configs/inuse") / config_file
+        if not path.exists():
+            shutil.copy(f"configs/{config_file}", path)
+        with open(path, "r") as f:
+            data_dict = json.load(f)
+            d[config_file] = V2TrainingConfig.from_dict(data_dict)
+    return d
 
-    @staticmethod
-    def arg_parse() -> tuple[str, int, bool, bool, bool]:
-        cmd_opts = ConfigArgs().parse_args()
-        port = cmd_opts.port if 0 <= cmd_opts.port <= 65535 else 7865
 
-        return (
-            cmd_opts.pycmd,
-            port,
-            cmd_opts.colab,
-            cmd_opts.noparallel,
-            cmd_opts.noautoopen,
-        )
+@lru_cache(maxsize=1)
+def get_config() -> ConfigData:
+    accelerator = get_accelerator()
+    n_cpu: int = 0
+    gpu_name: str | None = None
+    json_config: dict[str, VersionConfig] = load_config_json()
+    gpu_mem: int | None = None
 
-    def device_config(self) -> tuple[int, int, int, int]:
-        accelerator = get_accelerator()
-        device = accelerator.device
-        if device.type != "cpu":
-            self.gpu_name = accelerator.state.device.type
-            logger.info(f"Using Accelerate device {device}")
-            if device.type != "cuda":
-                self.gpu_mem = None
-        else:
-            logger.info("Accelerate selected CPU")
-            self.instead = "cpu"
+    args = ConfigArgs().parse_args()
 
-        if self.n_cpu == 0:
-            self.n_cpu = cpu_count()
+    instead: str = ""
+    preprocess_per: float = 3.7
+    # x_pad, x_query, x_center, x_max = device_config(accelerator)
 
-        is_half = use_half_precision()
-        if is_half:
-            # VRAM >= 6GB: use x_pad=3, x_query=10, x_center=60, x_max=65
-            x_pad = 3
-            x_query = 10
-            x_center = 60
-            x_max = 65
-        else:
-            # VRAM >= 4GB: use x_pad=1, x_query=6, x_center=38, x_max=41
-            x_pad = 1
-            x_query = 6
-            x_center = 38
-            x_max = 41
+    accelerator = get_accelerator()
+    device = accelerator.device
+    if device.type != "cpu":
+        gpu_name = accelerator.state.device.type
+        logger.info(f"Using Accelerate device {device}")
+        if device.type != "cuda":
+            gpu_mem = None
+    else:
+        logger.info("Accelerate selected CPU")
+        instead = "cpu"
+    if n_cpu == 0:
+        n_cpu = cpu_count()
+    is_half = use_half_precision()
+    if is_half:
+        # VRAM >= 6GB: use x_pad=3, x_query=10, x_center=60, x_max=65
+        x_pad = 3
+        x_query = 10
+        x_center = 60
+        x_max = 65
+    else:
+        # VRAM >= 4GB: use x_pad=1, x_query=6, x_center=38, x_max=41
+        x_pad = 1
+        x_query = 6
+        x_center = 38
+        x_max = 41
+    if gpu_mem is not None and gpu_mem <= 4:
+        x_pad = 1
+        x_query = 5
+        x_center = 30
+        x_max = 32
+    if instead:
+        logger.info(f"Use {instead} instead")
+    logger.info(f"Half-precision floating-point: {is_half}, device: {device}")
 
-        if self.gpu_mem is not None and self.gpu_mem <= 4:
-            x_pad = 1
-            x_query = 5
-            x_center = 30
-            x_max = 32
-        if self.instead:
-            logger.info(f"Use {self.instead} instead")
-        logger.info(f"Half-precision floating-point: {is_half}, device: {device}")
-        return x_pad, x_query, x_center, x_max
+    return ConfigData(
+        n_cpu=n_cpu,
+        gpu_name=gpu_name,
+        json_config=json_config,
+        gpu_mem=gpu_mem,
+        python_cmd=args.pycmd,
+        listen_port=args.port,
+        is_colab=args.colab,
+        noparallel=args.noparallel,
+        noautoopen=args.noautoopen,
+        instead=instead,
+        preprocess_per=preprocess_per,
+        x_pad=x_pad,
+        x_query=x_query,
+        x_center=x_center,
+        x_max=x_max,
+    )

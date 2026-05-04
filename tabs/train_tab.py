@@ -1,3 +1,4 @@
+from configs.config import get_config
 import dataclasses
 import datetime
 import json
@@ -139,20 +140,20 @@ def preprocess_dataset(
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path.write_text("")
     cmd = [
-        shared.config.python_cmd,
+        get_config().python_cmd,
         str(preprocess_script),
         "--inp_root",
         str(audio_dir),
         "--sr",
         str(sr_hz),
         "--n_p",
-        str(shared.config.n_cpu),
+        str(get_config().n_cpu),
         "--exp_dir",
         str(log_dir),
         "--per",
-        f"{shared.config.preprocess_per:.1f}",
+        f"{get_config().preprocess_per:.1f}",
     ]
-    if shared.config.noparallel:
+    if get_config().noparallel:
         cmd.append("--noparallel")
     logger.info(f"Execute: {shlex.join(cmd)}")
     p = subprocess.Popen(cmd, cwd=shared.now_dir)
@@ -207,19 +208,19 @@ def extract_f0_feature(
     log_path.write_text("")
     if f0method == "rmvpe_gpu":
         cmd = [
-            shared.config.python_cmd,
+            get_config().python_cmd,
             "infer/modules/train/extract/extract_f0_rmvpe.py",
             "--exp_dir",
             str(log_dir),
         ]
     else:
         cmd = [
-            shared.config.python_cmd,
+            get_config().python_cmd,
             "infer/modules/train/extract/extract_f0_print.py",
             "--exp_dir",
             str(log_dir),
             "--n_p",
-            str(shared.config.n_cpu),
+            str(get_config().n_cpu),
             "--f0method",
             f0method,
         ]
@@ -236,7 +237,7 @@ def extract_f0_feature(
         yield "F0 extraction failed."
         return
     cmd = [
-        shared.config.python_cmd,
+        get_config().python_cmd,
         "infer/modules/train/extract_feature_print.py",
         "--exp_dir",
         str(log_dir),
@@ -338,7 +339,7 @@ def ensure_mute_assets(version: ModelVersion, sr2: SampleRateName) -> None:
     else:
         sample_rate = shared.sr_dict[sr2]
         config_key = f"v2/{sr2}.json"
-        config = shared.config.json_config[config_key]
+        config = get_config().json_config[config_key]
         hop_length = config.data.hop_length
 
     frames = 100
@@ -455,7 +456,7 @@ def click_train(
         config_path = f"{version19}/{sr2}.json"
         with open(config_save_path, "w", encoding="utf-8") as f:
             json.dump(
-                dataclasses.asdict(shared.config.json_config[config_path]),
+                dataclasses.asdict(get_config().json_config[config_path]),
                 f,
                 ensure_ascii=False,
                 indent=4,
@@ -463,7 +464,7 @@ def click_train(
             )
             f.write("\n")
     cmd = [
-        shared.config.python_cmd,
+        get_config().python_cmd,
         "infer/modules/train/train.py",
         "-e",
         exp_dir1,

@@ -45,11 +45,11 @@ def arg_parse() -> InferBatchArgs:
 def main() -> None:
     load_dotenv()
     args = arg_parse()
-    from configs.config import Config
+    from configs.config import get_config
     from infer.lib.audio import load_audio
     from infer.modules.vc.modules import VC
 
-    config = Config()
+    config = get_config()
     vc = VC(config)
     vc.get_vc(args.model_name)
     input_path = Path(args.input_path)

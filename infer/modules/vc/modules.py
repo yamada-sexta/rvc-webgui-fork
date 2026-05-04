@@ -1,3 +1,4 @@
+from configs.config import ConfigData
 from lib.f0.type import PitchMethod
 import traceback
 from pathlib import Path
@@ -7,7 +8,7 @@ import resampy
 from loguru import logger
 import shared
 
-from configs.config import Config
+# from configs.config import Config
 from lib.types import (
     RvcCheckpoint,
     synthesizer_config_args_with_sr,
@@ -54,7 +55,7 @@ def resample_audio(
 
 
 class VC:
-    def __init__(self: "VC", config: Config):
+    def __init__(self: "VC", config: "ConfigData"):
         # self.config = config
         self.n_spk: int | None = None
         self.tgt_sr: int | None = None
@@ -67,7 +68,7 @@ class VC:
         from lib.hubert import HubertModelWrapper
 
         self.hubert_model: HubertModelWrapper | None = None
-        self.config: Config = config
+        self.config: ConfigData = config
 
     def _build_synthesizer(
         self, cpt: RvcCheckpoint

@@ -38,6 +38,7 @@ def configure_startup_logging() -> None:
     )
     logging.basicConfig(handlers=[InterceptHandler()], level=logging.INFO, force=True)
 
+
 load_dotenv()
 configure_startup_logging()
 logging.getLogger("numba").setLevel(logging.WARNING)
@@ -50,7 +51,7 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 import torch
 
-from configs.config import Config
+from configs.config import get_config
 from i18n.i18n import I18nAuto
 from infer.modules.vc.modules import VC
 from lib.accelerate_utils import get_accelerator
@@ -68,8 +69,8 @@ warnings.filterwarnings("ignore")
 torch.manual_seed(114514)
 
 
-config: Config = Config()
-vc = VC(config)
+# config: Config = Config()
+vc = VC(get_config())
 
 
 i18n = I18nAuto()

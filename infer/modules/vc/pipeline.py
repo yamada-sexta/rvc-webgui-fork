@@ -4,7 +4,7 @@ import traceback
 from pathlib import Path
 from typing import Protocol, TypeAlias, cast
 
-from configs.config import Config
+from configs.config import ConfigData
 from infer.lib.infer_pack.models import (
     SynthesizerTrnMs768BigVGANsid,
     SynthesizerTrnMs768NSFsid,
@@ -72,7 +72,7 @@ class Pipeline:
     f0_min = 50
     f0_max = 1100
 
-    def __init__(self, tgt_sr: int, config: Config) -> None:
+    def __init__(self, tgt_sr: int, config: ConfigData) -> None:
         self.x_pad, self.x_query, self.x_center, self.x_max = (
             config.x_pad,
             config.x_query,
