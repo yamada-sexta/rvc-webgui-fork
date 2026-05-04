@@ -9,6 +9,8 @@ import git
 # import torch
 from loguru import logger
 
+logger.info("Setting up logging and imports...")
+
 # Now import shared after setting up logging
 import shared
 import gradio as gr
@@ -20,6 +22,8 @@ from tabs.inference_tab import create_inference_tab
 from tabs.train_tab import create_train_tab
 from tabs.vocal_tab import create_vocal_tab
 from tabs.ckpt_processing_tab import create_ckpt_processing_tab
+
+logger.info("Starting RVC WebUI Fork...")
 
 # Create Gradio app
 with gr.Blocks(title="RVC WebUI Fork") as gradio_app:
