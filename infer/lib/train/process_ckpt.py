@@ -8,10 +8,6 @@ from typing import Literal, Protocol, cast
 
 import torch
 
-from i18n.i18n import I18nAuto
-
-i18n = I18nAuto()
-
 type WeightMap = dict[str, torch.Tensor]
 type CheckpointValue = WeightMap | list[object] | str | int
 type CheckpointDict = OrderedDict[str, CheckpointValue]
@@ -228,12 +224,12 @@ def merge(
     path2: Path | str,
     alpha1: float,
     sr: SampleRate,
-    f0: str,
+    f0: Literal["Yes", "No"],
     info: str,
     name: str,
     version: ModelVersion,
 ) -> str:
-    if f0 != i18n("Yes"):
+    if f0 != "Yes":
         return "Only f0-enabled models are supported."
     try:
 

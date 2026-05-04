@@ -27,7 +27,6 @@ from lib.json_validation import (
     ModelVersion,
     SampleRateName,
 )
-from shared import i18n
 
 ProgressComponent = gr.Progress
 
@@ -479,9 +478,9 @@ def click_train(
         "-se",
         str(save_epoch10),
         "-l",
-        str(1 if if_save_latest13 == i18n("Yes") else 0),
+        str(1 if if_save_latest13 == "Yes" else 0),
         "-sw",
-        str(1 if if_save_every_weights18 == i18n("Yes") else 0),
+        str(1 if if_save_every_weights18 == "Yes" else 0),
         "-v",
         version19,
     ]
@@ -516,35 +515,35 @@ def click_train(
 
 def create_train_tab() -> None:
 
-    with gr.TabItem(i18n("Train")):
+    with gr.TabItem("Train"):
         with gr.Group():
-            gr.Markdown(value=i18n("## Experiment Config"))
+            gr.Markdown(value="## Experiment Config")
             with gr.Row():
                 current_date = datetime.date.today()
                 formatted_date = current_date.strftime("%Y-%m-%d")
                 experiment_name = gr.Textbox(
-                    label=i18n("Experiment Name"), value=f"experiment_{formatted_date}"
+                    label="Experiment Name", value=f"experiment_{formatted_date}"
                 )
                 target_sr = gr.Radio(
-                    label=i18n("Target Sample Rate"),
+                    label="Target Sample Rate",
                     choices=["32k", "48k"],
                     value="48k",
                     interactive=True,
                 )
                 model_version = gr.Radio(
-                    label=i18n("Model Version"),
+                    label="Model Version",
                     choices=["v2", "v3"],
                     value="v2",
                     interactive=True,
                 )
 
         with gr.Group():
-            gr.Markdown(value=i18n("## Preprocess"))
+            gr.Markdown(value="## Preprocess")
             spk_id = gr.Slider(
                 minimum=0,
                 maximum=4,
                 step=1,
-                label=i18n("Speaker ID"),
+                label="Speaker ID",
                 value=0,
                 interactive=True,
                 visible=False,
@@ -553,15 +552,15 @@ def create_train_tab() -> None:
             with gr.Row():
                 with gr.Column():
                     audio_data_root = gr.Textbox(
-                        label=i18n("Audio Directory"),
-                        value=i18n("./datasets"),
+                        label="Audio Directory",
+                        value="./datasets",
                     )
                     audio_files = gr.Files(
-                        type="filepath", label=i18n("Audio Files"), file_types=["audio"]
+                        type="filepath", label="Audio Files", file_types=["audio"]
                     )
                 with gr.Column():
-                    preprocessing_btn = gr.Button(i18n("Preprocess"), variant="primary")
-                    info1 = gr.Textbox(label=i18n("Info"), value="")
+                    preprocessing_btn = gr.Button("Preprocess", variant="primary")
+                    info1 = gr.Textbox(label="Info", value="")
                     preprocessing_btn.click(
                         preprocess_meta,
                         [
@@ -574,18 +573,18 @@ def create_train_tab() -> None:
                         api_name="train_preprocess",
                     )
         with gr.Group():
-            gr.Markdown(value=i18n("## Extract Pitch"))
+            gr.Markdown(value="## Extract Pitch")
             with gr.Row():
                 with gr.Column():
                     f0method8 = gr.Radio(
-                        label=i18n("Method"),
+                        label="Method",
                         choices=["pm", "harvest", "dio", "rmvpe", "rmvpe_gpu"],
                         value="rmvpe_gpu",
                         interactive=True,
                     )
                 with gr.Column():
-                    extract_f0_btn = gr.Button(i18n("Extract"), variant="primary")
-                    info2 = gr.Textbox(label=i18n("Info"), value="", max_lines=8)
+                    extract_f0_btn = gr.Button("Extract", variant="primary")
+                    info2 = gr.Textbox(label="Info", value="", max_lines=8)
                     # progress = gr.Progress()
                     extract_f0_btn.click(
                         extract_f0_feature,
@@ -598,14 +597,14 @@ def create_train_tab() -> None:
                         api_name="train_extract_f0_feature",
                     )
         with gr.Group():
-            gr.Markdown(value=i18n("## Training Config"))
+            gr.Markdown(value="## Training Config")
             with gr.Row():
                 with gr.Column():
                     save_epoch = gr.Slider(
                         minimum=1,
                         maximum=50,
                         step=1,
-                        label=i18n("Save Frequency"),
+                        label="Save Frequency",
                         value=5,
                         interactive=True,
                     )
@@ -613,7 +612,7 @@ def create_train_tab() -> None:
                         minimum=2,
                         maximum=1000,
                         step=1,
-                        label=i18n("Total Epochs"),
+                        label="Total Epochs",
                         value=20,
                         interactive=True,
                     )
@@ -621,37 +620,35 @@ def create_train_tab() -> None:
                         minimum=1,
                         maximum=40,
                         step=1,
-                        label=i18n("Batch Size"),
+                        label="Batch Size",
                         value=shared.default_batch_size,
                         interactive=True,
                     )
                     if_save_latest13 = gr.Radio(
-                        label=i18n("Only Save Latest Model"),
-                        choices=[i18n("Yes"), i18n("No")],
-                        value=i18n("No"),
+                        label="Only Save Latest Model",
+                        choices=["Yes", "No"],
+                        value="No",
                         interactive=True,
                     )
                     if_save_every_weights18 = gr.Radio(
-                        label=i18n("Save Finalized Model Every Time"),
-                        choices=[i18n("Yes"), i18n("No")],
-                        value=i18n("No"),
+                        label="Save Finalized Model Every Time",
+                        choices=["Yes", "No"],
+                        value="No",
                         interactive=True,
                     )
                     pretrained_G14 = gr.Textbox(
-                        label=i18n("Base Model G"),
+                        label="Base Model G",
                         value="assets/pretrained_v2/f0G48k.pth",
                         interactive=True,
                     )
                     pretrained_D15 = gr.Textbox(
-                        label=i18n("Base Model D"),
+                        label="Base Model D",
                         value="assets/pretrained_v2/f0D48k.pth",
                         interactive=True,
                     )
                 with gr.Column():
-                    train_btn = gr.Button(i18n("Train"), variant="primary")
-                    training_info = gr.Textbox(
-                        label=i18n("Info"), value="", max_lines=10
-                    )
+                    train_btn = gr.Button("Train", variant="primary")
+                    training_info = gr.Textbox(label="Info", value="", max_lines=10)
 
             target_sr.change(
                 change_pretrained_inputs,

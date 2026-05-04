@@ -52,7 +52,8 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 import torch
 
 from configs.config import get_config
-from i18n.i18n import I18nAuto
+
+# from i18n.i18n import I18nAuto
 from infer.modules.vc.modules import VC
 from lib.accelerate_utils import get_accelerator
 
@@ -73,8 +74,8 @@ torch.manual_seed(114514)
 vc = VC(get_config())
 
 
-i18n = I18nAuto()
-logger.info(f"Use Language: {i18n}")
+# i18n = I18nAuto()
+# logger.info(f"Use Language: {i18n}")
 accelerator = get_accelerator()
 logger.info(f"Accelerate device: {accelerator.device}")
 default_batch_size = 1
