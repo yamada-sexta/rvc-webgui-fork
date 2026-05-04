@@ -89,7 +89,7 @@ class Slicer:
             ]
 
     # @timeit
-    def slice(self, waveform):
+    def slice(self, waveform: NDArray[np.floating]) -> list[NDArray[np.floating]]:
         if len(waveform.shape) > 1:
             samples = waveform.mean(axis=0)
         else:
