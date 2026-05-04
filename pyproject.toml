@@ -39,6 +39,7 @@ dependencies = [
     "bigvgan>=2.4.1",
     "transformers>=5.7.0",
     "pandas>=2.3.3",
+    "safetensors>=0.7.0",
 ]
 
 [tool.uv.sources]
