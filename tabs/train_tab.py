@@ -183,14 +183,16 @@ def generate_mute_wavs(exp_dir: Path, sample_rate: int) -> None:
     gt_dir.mkdir(parents=True, exist_ok=True)
     wav16k_dir.mkdir(parents=True, exist_ok=True)
 
-    frames = 100
+    frames = 300
     # We need to know hop_length to match frames.
     # Since we are in preprocessing, we can get it from the sample rate if we assume standard RVC hops.
     # For 40k it's 400, for 48k it's 480, for 32k it's 320.
     # Basically hop_length = sample_rate / 100.
     hop_length = sample_rate // 100
 
-    wav_path = gt_dir / "mute.wav" # Changed from mute{sr}.wav to just mute.wav for simplicity
+    wav_path = (
+        gt_dir / "mute.wav"
+    )  # Changed from mute{sr}.wav to just mute.wav for simplicity
     wav16k_path = wav16k_dir / "mute.wav"
 
     if not wav_path.exists():
@@ -442,7 +444,9 @@ def click_train(
                 }
             )
     else:
-        logger.warning("Mute assets missing in experiment directory. Skipping mute augmentation.")
+        logger.warning(
+            "Mute assets missing in experiment directory. Skipping mute augmentation."
+        )
 
     df = pd.DataFrame(data)
     df = df.sample(frac=1).reset_index(drop=True)
