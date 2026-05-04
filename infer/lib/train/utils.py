@@ -1,3 +1,4 @@
+from joblib.externals.cloudpickle import instance
 import json
 from configs.v2_config import V2TrainingConfig
 import os
@@ -65,7 +66,7 @@ def load_checkpoint_d(
     checkpoint_path: Path,
     combd: nn.Module,
     sbd: nn.Module,
-    optimizer=None,
+    optimizer: torch.optim.Optimizer | None = None,
     load_opt: int = 1,
 ):
     assert checkpoint_path.is_file()
@@ -118,7 +119,12 @@ def load_checkpoint_d(
     return model, optimizer, learning_rate, iteration
 
 
-def load_checkpoint(checkpoint_path: Path, model, optimizer=None, load_opt: int = 1):
+def load_checkpoint(
+    checkpoint_path: Path,
+    model: nn.Module,
+    optimizer: torch.optim.Optimizer | None = None,
+    load_opt: int = 1,
+) -> tuple[nn.Module, torch.optim.Optimizer | None, float, int]:
     assert checkpoint_path.is_file()
     checkpoint_dict = torch.load(
         checkpoint_path, map_location="cpu", weights_only=False
@@ -126,7 +132,10 @@ def load_checkpoint(checkpoint_path: Path, model, optimizer=None, load_opt: int 
 
     saved_state_dict = checkpoint_dict["model"]
     if hasattr(model, "module"):
-        state_dict = model.module.state_dict()
+        # state_dict = model.module.state_dict()
+        raise ValueError(
+            "Model wrapped in DataParallel or DistributedDataParallel is not supported yet."
+        )
     else:
         state_dict = model.state_dict()
     new_state_dict = {}
@@ -142,7 +151,10 @@ def load_checkpoint(checkpoint_path: Path, model, optimizer=None, load_opt: int 
             logger.info(f"{k} is not in the checkpoint")
             new_state_dict[k] = v  # Random values provided by the model
     if hasattr(model, "module"):
-        model.module.load_state_dict(new_state_dict, strict=False)
+        # model.module.load_state_dict(new_state_dict, strict=False)
+        raise ValueError(
+            "Model wrapped in DataParallel or DistributedDataParallel is not supported yet."
+        )
     else:
         model.load_state_dict(new_state_dict, strict=False)
     logger.info("Loaded model weights")
@@ -156,6 +168,11 @@ def load_checkpoint(checkpoint_path: Path, model, optimizer=None, load_opt: int 
         optimizer.load_state_dict(checkpoint_dict["optimizer"])
     #   except:
     #     traceback.print_exc()
+    assert isinstance(learning_rate, float)
+    assert isinstance(iteration, int)
+    assert isinstance(model, nn.Module)
+    assert optimizer is None or isinstance(optimizer, torch.optim.Optimizer)
+
     logger.info(f"Loaded checkpoint '{checkpoint_path}' (epoch {iteration})")
     return model, optimizer, learning_rate, iteration
 
@@ -278,23 +295,6 @@ def get_hparams() -> "HParams":
 
     logger.info(f"Using training config: {config}")
 
-    # runtime = HParamsRuntimeOverrides(
-    #     model_dir=experiment_dir,
-    #     experiment_dir=experiment_dir,
-    #     save_every_epoch=args.save_every_epoch,
-    #     name=name,
-    #     total_epoch=args.total_epoch,
-    #     pretrainG=args.pretrainG,
-    #     pretrainD=args.pretrainD,
-    #     version=args.version,
-    #     batch_size=args.batch_size,
-    #     sample_rate=args.sample_rate,
-    #     if_f0=args.if_f0,
-    #     if_latest=args.if_latest,
-    #     save_every_weights=args.save_every_weights,
-    #     training_files=experiment_dir / "filelist.txt",
-    # )
-    # return HParams.from_config(config, runtime)
     return HParams(
         train=TrainHParams(
             log_interval=config.train.log_interval,
@@ -417,34 +417,19 @@ def get_logger(model_dir: Path, filename: str = "train.log", *, stdout: bool = F
     return logger
 
 
-def hparams_to_dict(value: object) -> object:
-    if isinstance(value, HParams):
-        return hparams_to_dict(asdict(value))
-    if isinstance(value, dict):
-        return {str(key): hparams_to_dict(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [hparams_to_dict(item) for item in value]
-    return value
-
-
-# @dataclass(frozen=True)
-# class HParamsRuntimeOverrides:
-#     # model_config = ConfigDict(arbitrary_types_allowed=True)
-
-#     model_dir: Path | None = None
-#     experiment_dir: Path | None = None
-#     save_every_epoch: int = 0
-#     name: str = ""
-#     total_epoch: int = 0
-#     pretrainG: Path | None = None
-#     pretrainD: Path | None = None
-#     version: ModelVersion = "v2"
-#     batch_size: int | None = None
-#     sample_rate: SampleRateName | None = None
-#     if_f0: Literal[0, 1] = 1
-#     if_latest: Literal[0, 1] = 0
-#     save_every_weights: Literal["0", "1"] = "0"
-#     training_files: Path | None = None
+def hparams_to_dict(value: "HParams") -> dict:
+    if not isinstance(value, HParams):
+        raise TypeError(f"Expected HParams instance, got {type(value)}")
+        # return hparams_to_dict(asdict(value))
+    # if isinstance(value, dict):
+    #     return {str(key): hparams_to_dict(item) for key, item in value.items()}
+    # if isinstance(value, (list, tuple)):
+    #     return [hparams_to_dict(item) for item in value]
+    # return value
+    # return asdict(value)
+    res = asdict(value)
+    logger.debug(f"Converted HParams to dict: {res}")
+    return res
 
 
 @dataclass(frozen=True)

@@ -13,7 +13,7 @@ from infer.lib.train.process_ckpt import (
 )
 
 
-def change_info_(ckpt_path):
+def change_info_(ckpt_path: str | Path):
     train_log = Path(ckpt_path).parent / "train.log"
     if not train_log.exists():
         return {"__type__": "update"}, {"__type__": "update"}, {"__type__": "update"}
