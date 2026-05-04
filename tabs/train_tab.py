@@ -16,7 +16,6 @@ import numpy as np
 from loguru import logger
 from pydantic import ValidationError
 from scipy.io.wavfile import write as write_wav
-from sklearn.cluster import MiniBatchKMeans
 from pathlib import Path
 
 import shared
@@ -31,7 +30,7 @@ from shared import i18n
 
 ProgressComponent = gr.Progress
 
-SampleRate = SampleRateName
+# SampleRate = SampleRateName
 PitchExtractionMethod = Literal["pm", "harvest", "dio", "rmvpe", "rmvpe_gpu"]
 
 
@@ -90,7 +89,7 @@ def is_skip_update(value: object) -> bool:
 def preprocess_dataset(
     audio_dir: Path | str,
     exp_dir: Path | str,
-    sr: SampleRate,
+    sr: SampleRateName,
     progress: gr.Progress = gr.Progress(),
 ) -> Generator[str, None, None]:
     audio_dir = Path(audio_dir)
@@ -172,7 +171,7 @@ def preprocess_meta(
     experiment_name: str,
     audio_dir: Path | str,
     audio_files: list[Path] | None,
-    sr: SampleRate,
+    sr: SampleRateName,
     progress: gr.Progress = gr.Progress(),
 ) -> Generator[str, None, None]:
     audio_dir = Path(audio_dir)
@@ -265,7 +264,7 @@ def extract_f0_feature(
 
 
 def get_pretrained_models(
-    path: Path, f0_str: str, sr2: SampleRate
+    path: Path, f0_str: str, sr2: SampleRateName
 ) -> tuple[Path | None, Path | None]:
     pretrained_dir = Path("assets") / f"pretrained{path}"
     generator_path = pretrained_dir / f"{f0_str}G{sr2}.pth"
@@ -288,12 +287,12 @@ def get_pretrained_models(
     )
 
 
-def change_sr2(sr2: SampleRate) -> tuple[Path | None, Path | None]:
+def change_sr2(sr2: SampleRateName) -> tuple[Path | None, Path | None]:
     return get_pretrained_models(Path("_v2"), "f0", sr2)
 
 
 def change_version_and_sr(
-    version: ModelVersion, sr2: SampleRate
+    version: ModelVersion, sr2: SampleRateName
 ) -> tuple[dict[str, object], Path | None, Path | None]:
     if version == "v3":
         return (
@@ -314,14 +313,14 @@ def change_version_and_sr(
 
 
 def change_pretrained_inputs(
-    version: ModelVersion, sr2: SampleRate
+    version: ModelVersion, sr2: SampleRateName
 ) -> tuple[Path | None, Path | None]:
     if version == "v3":
         return None, None
     return change_sr2(sr2)
 
 
-def ensure_mute_assets(version: ModelVersion, sr2: SampleRate) -> None:
+def ensure_mute_assets(version: ModelVersion, sr2: SampleRateName) -> None:
     mute_root = pathlib.Path(shared.now_dir) / "logs" / "mute"
     gt_dir = mute_root / "0_gt_wavs"
     feature_dir = mute_root / "3_feature768"
@@ -362,7 +361,7 @@ def ensure_mute_assets(version: ModelVersion, sr2: SampleRate) -> None:
 
 def click_train(
     exp_dir1: str,
-    sr2: SampleRate,
+    sr2: SampleRateName,
     version19: ModelVersion,
     spk_id5: int,
     save_epoch10: int,
