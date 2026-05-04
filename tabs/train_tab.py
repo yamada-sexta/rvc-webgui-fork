@@ -177,11 +177,6 @@ def preprocess_meta(
     sr: SampleRateName,
     progress: gr.Progress = gr.Progress(),
 ) -> Generator[str, None, None]:
-    if audio_files is not None and len(audio_files) == 0:
-        warning_msg = "Warning: No audio files were selected for preprocessing. Please select files or provide a valid audio directory."
-        logger.warning(warning_msg)
-        yield warning_msg
-        return
     audio_dir = Path(audio_dir)
     save_dir = audio_dir / experiment_name
     save_dir.mkdir(parents=True, exist_ok=True)
