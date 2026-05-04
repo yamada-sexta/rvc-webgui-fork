@@ -369,10 +369,10 @@ def click_train(
     save_epoch10: int,
     total_epoch11: int,
     batch_size12: int,
-    if_save_latest13: str,
-    pretrained_G14: Path | None,
-    pretrained_D15: Path | None,
-    if_save_every_weights18: str,
+    if_save_latest13: bool,
+    pretrained_G14: str | Path | None,
+    pretrained_D15: str | Path | None,
+    if_save_every_weights18: bool,
     progress: gr.Progress = gr.Progress(),
 ) -> Generator[str, None, None]:
     if version19 == "v3" and sr2 != "44k":
@@ -478,9 +478,9 @@ def click_train(
         "-se",
         str(save_epoch10),
         "-l",
-        str(1 if if_save_latest13 == "Yes" else 0),
+        str(1 if if_save_latest13 else 0),
         "-sw",
-        str(1 if if_save_every_weights18 == "Yes" else 0),
+        str(1 if if_save_every_weights18 else 0),
         "-v",
         version19,
     ]
@@ -624,16 +624,20 @@ def create_train_tab() -> None:
                         value=shared.default_batch_size,
                         interactive=True,
                     )
-                    if_save_latest13 = gr.Radio(
+                    # if_save_latest13 = gr.Radio(
+                    #     label="Only Save Latest Model",
+                    #     choices=["Yes", "No"],
+                    #     value="No",
+                    #     interactive=True,
+                    # )
+                    if_save_latest13 = gr.Checkbox(
                         label="Only Save Latest Model",
-                        choices=["Yes", "No"],
-                        value="No",
+                        value=False,
                         interactive=True,
                     )
-                    if_save_every_weights18 = gr.Radio(
+                    if_save_every_weights18 = gr.Checkbox(
                         label="Save Finalized Model Every Time",
-                        choices=["Yes", "No"],
-                        value="No",
+                        value=False,
                         interactive=True,
                     )
                     pretrained_G14 = gr.Textbox(

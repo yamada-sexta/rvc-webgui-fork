@@ -8,7 +8,8 @@ import soundfile as sf
 import shared
 from lib.f0.type import PITCH_METHODS, PitchMethod
 from loguru import logger
-from shared import i18n
+
+# from shared import i18n
 
 
 def clean() -> dict[str, object]:
@@ -34,44 +35,44 @@ def get_model_list() -> list[str]:
 
 def create_inference_tab(app: gr.Blocks) -> None:
 
-    with gr.TabItem(i18n("Inference")):
+    with gr.TabItem("Inference"):
         gr.api(get_pitch_methods, api_name="get_pitch_methods")
         with gr.Row():
             with gr.Column():
                 model_list = sorted(shared.names)
                 if not model_list:
                     gr.Textbox(
-                        label=i18n("Model"),
-                        value=i18n("No models found."),
+                        label="Model",
+                        value="No models found.",
                         interactive=False,
                         visible=True,
                     )
                     model_dropdown = gr.Dropdown(
-                        label=i18n("Model"), choices=[], visible=False
+                        label="Model", choices=[], visible=False
                     )
                 else:
                     model_dropdown = gr.Dropdown(
-                        label=i18n("Model"), choices=model_list, visible=True
+                        label="Model", choices=model_list, visible=True
                     )
 
-                refresh_btn = gr.Button(i18n("Refresh"), variant="primary")
+                refresh_btn = gr.Button("Refresh", variant="primary")
 
                 with gr.Group():
-                    gr.Markdown(f"### {i18n('Basic')}")
+                    gr.Markdown(f"### Basic")
                     audio_input = gr.Audio(
-                        label=i18n("Input Audio"),
+                        label="Input Audio",
                         type="numpy",
                     )
-                    convert_btn = gr.Button(i18n("Convert"), variant="primary")
+                    convert_btn = gr.Button("Convert", variant="primary")
 
                     vc_file_output = gr.Audio(
-                        label=i18n("Output Audio"),
+                        label="Output Audio",
                     )
                     download_btn = gr.DownloadButton(
-                        label=i18n("Download Result"),
+                        label="Download",
                         visible=True,
                         interactive=False,
-                        variant="secondary"
+                        variant="secondary",
                     )
 
                     def prepare_download(
@@ -79,17 +80,27 @@ def create_inference_tab(app: gr.Blocks) -> None:
                         model_name: str | None,
                     ) -> dict[str, object]:
                         if not audio_data:
-                            return {"interactive": False, "value": None, "__type__": "update"}
+                            return {
+                                "interactive": False,
+                                "value": None,
+                                "__type__": "update",
+                            }
                         try:
                             import tempfile
-                            
-                            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                            model_name_clean = Path(model_name).stem if model_name else "model"
+
+                            timestamp = datetime.datetime.now().strftime(
+                                "%Y%m%d_%H%M%S"
+                            )
+                            model_name_clean = (
+                                Path(model_name).stem if model_name else "model"
+                            )
                             filename = f"{model_name_clean}_{timestamp}.wav"
 
                             temp_dir = Path(tempfile.gettempdir())
                             file_path = temp_dir / filename
-                            logger.info(f"Generated temp file for download at: {file_path}")
+                            logger.info(
+                                f"Generated temp file for download at: {file_path}"
+                            )
 
                             if isinstance(audio_data, str):
                                 shutil.copy2(audio_data, file_path)
@@ -97,11 +108,19 @@ def create_inference_tab(app: gr.Blocks) -> None:
                                 sr, audio = audio_data
                                 sf.write(file_path, audio, sr)
 
-                            return {"interactive": True, "value": str(file_path), "__type__": "update"}
+                            return {
+                                "interactive": True,
+                                "value": str(file_path),
+                                "__type__": "update",
+                            }
                         except Exception as e:
                             logger.error(f"Failed to prepare download: {e}")
-                            return {"interactive": False, "value": None, "__type__": "update"}
-                    
+                            return {
+                                "interactive": False,
+                                "value": None,
+                                "__type__": "update",
+                            }
+
                     vc_file_output.change(
                         prepare_download,
                         inputs=[vc_file_output, model_dropdown],
@@ -119,7 +138,7 @@ def create_inference_tab(app: gr.Blocks) -> None:
                 resample_sr0 = gr.Slider(
                     minimum=0,
                     maximum=48000,
-                    label=i18n("Resample Rate (Skip if it is 0)"),
+                    label="Resample Rate (Skip if it is 0)",
                     value=0,
                     step=1,
                     interactive=True,
@@ -127,14 +146,14 @@ def create_inference_tab(app: gr.Blocks) -> None:
                 rms_mix_rate0 = gr.Slider(
                     minimum=0,
                     maximum=1,
-                    label=i18n("RMS Mix Rate"),
+                    label="RMS Mix Rate",
                     value=0.25,
                     interactive=True,
                 )
                 protect0 = gr.Slider(
                     minimum=0,
                     maximum=0.5,
-                    label=i18n("Protect 0 (Reduce Artifact)"),
+                    label="Protect 0 (Reduce Artifact)",
                     value=0.33,
                     step=0.01,
                     interactive=True,
@@ -145,12 +164,12 @@ def create_inference_tab(app: gr.Blocks) -> None:
                     outputs=[],
                 )
                 f0method0 = gr.Radio(
-                    label=i18n("Pitch Method"),
+                    label="Pitch Method",
                     choices=get_pitch_methods(),
                     value="rmvpe",
                     interactive=True,
                 )
-                vc_log_output = gr.Textbox(label=i18n("Log info"))
+                vc_log_output = gr.Textbox(label="Log info")
 
         convert_btn.click(
             shared.vc.vc_single,
