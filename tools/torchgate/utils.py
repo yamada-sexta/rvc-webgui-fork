@@ -4,7 +4,7 @@ from torch.types import Number
 
 @torch.no_grad()
 def amp_to_db(
-    x: torch.Tensor, eps=torch.finfo(torch.float64).eps, top_db=40
+    x: torch.Tensor, eps: float = torch.finfo(torch.float64).eps, top_db: float = 40
 ) -> torch.Tensor:
     """
     Convert the input tensor from amplitude to decibel scale.
