@@ -1,12 +1,13 @@
 from dataclasses import dataclass
 
+
 @dataclass(frozen=True)
 class V2TrainConfig:
     log_interval: int
     seed: int
     epochs: int
     learning_rate: float
-    betas: list[float]
+    betas: tuple[float, float]
     eps: float
     batch_size: int
     fp16_run: bool

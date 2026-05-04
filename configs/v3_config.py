@@ -62,5 +62,5 @@ class V3TrainingConfig:
     model: V3ModelConfig = field(default_factory=V3ModelConfig)
 
 
-def get_v3_training_config() -> TrainingConfig:
-    return TrainingConfig.model_validate(asdict(V3TrainingConfig()))
+def get_v3_training_config() -> V3TrainingConfig:
+    return V3TrainingConfig()

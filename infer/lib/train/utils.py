@@ -1,3 +1,5 @@
+import json
+from configs.v2_config import V2TrainingConfig
 import os
 import subprocess
 import sys
@@ -28,9 +30,9 @@ class TrainArgs(Tap):
     # Total training epochs.
     total_epoch: int
     # Pretrained generator path.
-    pretrainG: str = ""
+    pretrainG: Path | None = None
     # Pretrained discriminator path.
-    pretrainD: str = ""
+    pretrainD: Path | None = None
     # Training batch size.
     batch_size: int
     # Experiment directory name under logs.
@@ -242,7 +244,7 @@ def load_filepaths_and_text(
     return res
 
 
-def get_hparams() -> HParams:
+def get_hparams() -> "HParams":
     """
     todo:
       The ending group of seven:
@@ -262,27 +264,98 @@ def get_hparams() -> HParams:
     experiment_dir = Path("./logs") / args.experiment_dir
 
     if args.version == "v3":
-        config = HParamsConfig.model_validate(get_v3_training_config().model_dump())
+        config = get_v3_training_config()
+
+    elif args.version == "v2":
+        config_path = experiment_dir / "config.json"
+        if not config_path.is_file():
+            raise FileNotFoundError(
+                f"Config file not found at {config_path}. Please ensure the config file is present."
+            )
+        config = V2TrainingConfig(**json.loads(config_path.read_text()))
     else:
-        config_save_path = experiment_dir / "config.json"
-        config = HParamsConfig.model_validate_json(config_save_path.read_text())
-    runtime = HParamsRuntimeOverrides(
-        model_dir=experiment_dir,
-        experiment_dir=experiment_dir,
-        save_every_epoch=args.save_every_epoch,
-        name=name,
-        total_epoch=args.total_epoch,
+        raise ValueError(f"Unsupported model version: {args.version}")
+
+    logger.info(f"Using training config: {config}")
+
+    # runtime = HParamsRuntimeOverrides(
+    #     model_dir=experiment_dir,
+    #     experiment_dir=experiment_dir,
+    #     save_every_epoch=args.save_every_epoch,
+    #     name=name,
+    #     total_epoch=args.total_epoch,
+    #     pretrainG=args.pretrainG,
+    #     pretrainD=args.pretrainD,
+    #     version=args.version,
+    #     batch_size=args.batch_size,
+    #     sample_rate=args.sample_rate,
+    #     if_f0=args.if_f0,
+    #     if_latest=args.if_latest,
+    #     save_every_weights=args.save_every_weights,
+    #     training_files=experiment_dir / "filelist.txt",
+    # )
+    # return HParams.from_config(config, runtime)
+    return HParams(
+        train=TrainHParams(
+            log_interval=config.train.log_interval,
+            seed=config.train.seed,
+            epochs=config.train.epochs,
+            learning_rate=config.train.learning_rate,
+            betas=config.train.betas,
+            eps=config.train.eps,
+            batch_size=args.batch_size,  # runtime overrides config
+            fp16_run=config.train.fp16_run,
+            lr_decay=config.train.lr_decay,
+            segment_size=config.train.segment_size,
+            init_lr_ratio=config.train.init_lr_ratio,
+            warmup_epochs=config.train.warmup_epochs,
+            c_mel=config.train.c_mel,
+            c_kl=config.train.c_kl,
+        ),
+        data=DataHParams(
+            max_wav_value=config.data.max_wav_value,
+            sampling_rate=config.data.sampling_rate,
+            filter_length=config.data.filter_length,
+            hop_length=config.data.hop_length,
+            win_length=config.data.win_length,
+            n_mel_channels=config.data.n_mel_channels,
+            mel_fmin=config.data.mel_fmin,
+            mel_fmax=config.data.mel_fmax,
+            training_files=experiment_dir / "filelist.txt,",
+        ),
+        model=ModelHParams(
+            inter_channels=config.model.inter_channels,
+            hidden_channels=config.model.hidden_channels,
+            filter_channels=config.model.filter_channels,
+            n_heads=config.model.n_heads,
+            n_layers=config.model.n_layers,
+            kernel_size=config.model.kernel_size,
+            p_dropout=float(config.model.p_dropout),
+            resblock=config.model.resblock,
+            resblock_kernel_sizes=tuple(config.model.resblock_kernel_sizes),
+            resblock_dilation_sizes=tuple(
+                tuple(item) for item in config.model.resblock_dilation_sizes
+            ),
+            upsample_rates=tuple(config.model.upsample_rates),
+            upsample_initial_channel=config.model.upsample_initial_channel,
+            upsample_kernel_sizes=tuple(config.model.upsample_kernel_sizes),
+            use_spectral_norm=config.model.use_spectral_norm,
+            gin_channels=config.model.gin_channels,
+            spk_embed_dim=config.model.spk_embed_dim,
+        ),
+        model_dir=experiment_dir,  # runtime overrides config
+        experiment_dir=experiment_dir,  # runtime overrides config
+        save_every_epoch=args.save_every_epoch,  # runtime overrides config
+        name=name,  # runtime overrides config
+        total_epoch=args.total_epoch,  # runtime overrides config
         pretrainG=args.pretrainG,
         pretrainD=args.pretrainD,
         version=args.version,
-        batch_size=args.batch_size,
-        sample_rate=args.sample_rate,
         if_f0=args.if_f0,
         if_latest=args.if_latest,
         save_every_weights=args.save_every_weights,
-        training_files=experiment_dir / "filelist.txt",
+        sample_rate=config.data.sampling_rate,  # runtime overrides config
     )
-    return HParams.from_config(config, runtime)
 
 
 def check_git_hash(model_dir: Path) -> None:
@@ -354,27 +427,24 @@ def hparams_to_dict(value: object) -> object:
     return value
 
 
-class HParamsConfig(TrainingConfig):
-    model_config = ConfigDict(extra="forbid")
+# @dataclass(frozen=True)
+# class HParamsRuntimeOverrides:
+#     # model_config = ConfigDict(arbitrary_types_allowed=True)
 
-
-class HParamsRuntimeOverrides(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    model_dir: Path | None = None
-    experiment_dir: Path | None = None
-    save_every_epoch: int = 0
-    name: str = ""
-    total_epoch: int = 0
-    pretrainG: str = ""
-    pretrainD: str = ""
-    version: ModelVersion = "v2"
-    batch_size: int | None = None
-    sample_rate: SampleRateName | None = None
-    if_f0: Literal[0, 1] = 1
-    if_latest: Literal[0, 1] = 0
-    save_every_weights: Literal["0", "1"] = "0"
-    training_files: Path | None = None
+#     model_dir: Path | None = None
+#     experiment_dir: Path | None = None
+#     save_every_epoch: int = 0
+#     name: str = ""
+#     total_epoch: int = 0
+#     pretrainG: Path | None = None
+#     pretrainD: Path | None = None
+#     version: ModelVersion = "v2"
+#     batch_size: int | None = None
+#     sample_rate: SampleRateName | None = None
+#     if_f0: Literal[0, 1] = 1
+#     if_latest: Literal[0, 1] = 0
+#     save_every_weights: Literal["0", "1"] = "0"
+#     training_files: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -435,97 +505,16 @@ class HParams:
     train: TrainHParams
     data: DataHParams
     model: ModelHParams
-    model_dir: Path = Path(".")
-    experiment_dir: Path = Path(".")
-    save_every_epoch: int = 0
-    name: str = ""
+
+    sample_rate: int
+    model_dir: Path
+    experiment_dir: Path
+    save_every_epoch: int
+    name: str
     total_epoch: int = 0
-    pretrainG: str = ""
-    pretrainD: str = ""
+    pretrainG: Path | None = None
+    pretrainD: Path | None = None
     version: ModelVersion = "v2"
-    sample_rate: SampleRateName = "48k"
     if_f0: Literal[0, 1] = 1
     if_latest: Literal[0, 1] = 0
     save_every_weights: Literal["0", "1"] = "0"
-
-    @classmethod
-    def from_config(
-        cls,
-        config: HParamsConfig,
-        runtime: HParamsRuntimeOverrides | None = None,
-    ) -> "HParams":
-        runtime = runtime or HParamsRuntimeOverrides()
-        train = TrainHParams(
-            log_interval=config.train.log_interval,
-            seed=config.train.seed,
-            epochs=config.train.epochs,
-            learning_rate=config.train.learning_rate,
-            betas=config.train.betas,
-            eps=config.train.eps,
-            batch_size=config.train.batch_size,
-            fp16_run=config.train.fp16_run,
-            lr_decay=config.train.lr_decay,
-            segment_size=config.train.segment_size,
-            init_lr_ratio=config.train.init_lr_ratio,
-            warmup_epochs=config.train.warmup_epochs,
-            c_mel=config.train.c_mel,
-            c_kl=config.train.c_kl,
-        )
-        if runtime.batch_size is not None:
-            train = replace(train, batch_size=runtime.batch_size)
-        data = DataHParams(
-            max_wav_value=config.data.max_wav_value,
-            sampling_rate=config.data.sampling_rate,
-            filter_length=config.data.filter_length,
-            hop_length=config.data.hop_length,
-            win_length=config.data.win_length,
-            n_mel_channels=config.data.n_mel_channels,
-            mel_fmin=config.data.mel_fmin,
-            mel_fmax=config.data.mel_fmax,
-            training_files=config.data.training_files,
-            min_text_len=config.data.min_text_len,
-            max_text_len=config.data.max_text_len,
-        )
-        if runtime.training_files is not None:
-            data = replace(data, training_files=runtime.training_files)
-        sample_rate = runtime.sample_rate or {
-            32000: "32k",
-            44100: "44k",
-            48000: "48k",
-        }.get(config.data.sampling_rate, "48k")
-        return cls(
-            train=train,
-            data=data,
-            model=ModelHParams(
-                inter_channels=config.model.inter_channels,
-                hidden_channels=config.model.hidden_channels,
-                filter_channels=config.model.filter_channels,
-                n_heads=config.model.n_heads,
-                n_layers=config.model.n_layers,
-                kernel_size=config.model.kernel_size,
-                p_dropout=config.model.p_dropout,
-                resblock=config.model.resblock,
-                resblock_kernel_sizes=tuple(config.model.resblock_kernel_sizes),
-                resblock_dilation_sizes=tuple(
-                    tuple(item) for item in config.model.resblock_dilation_sizes
-                ),
-                upsample_rates=tuple(config.model.upsample_rates),
-                upsample_initial_channel=config.model.upsample_initial_channel,
-                upsample_kernel_sizes=tuple(config.model.upsample_kernel_sizes),
-                use_spectral_norm=config.model.use_spectral_norm,
-                gin_channels=config.model.gin_channels,
-                spk_embed_dim=config.model.spk_embed_dim,
-            ),
-            model_dir=runtime.model_dir or Path("."),
-            experiment_dir=runtime.experiment_dir or Path("."),
-            save_every_epoch=runtime.save_every_epoch,
-            name=runtime.name,
-            total_epoch=runtime.total_epoch,
-            pretrainG=runtime.pretrainG,
-            pretrainD=runtime.pretrainD,
-            version=runtime.version,
-            sample_rate=cast(SampleRateName, sample_rate),
-            if_f0=runtime.if_f0,
-            if_latest=runtime.if_latest,
-            save_every_weights=runtime.save_every_weights,
-        )

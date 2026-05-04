@@ -26,7 +26,7 @@ def get_rms(
     hop_length: int = 512,
     pad_mode: PadMode = "constant",
 ):
-    padding = (int(frame_length // 2), int(frame_length // 2))
+    padding = (frame_length // 2, frame_length // 2)
     y = np.pad(y, padding, mode=pad_mode)
 
     axis = -1
