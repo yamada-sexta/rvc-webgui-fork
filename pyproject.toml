@@ -38,6 +38,7 @@ dependencies = [
     "accelerate>=1.13.0",
     "bigvgan>=2.4.1",
     "transformers>=5.7.0",
+    "pandas>=2.3.3",
 ]
 
 [tool.uv.sources]
