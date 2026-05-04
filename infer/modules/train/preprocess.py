@@ -130,7 +130,7 @@ class PreProcess:
 
     def pipeline(self: "PreProcess", path: Path, idx0: int):
         try:
-            audio = load_audio(str(path), self.sr)
+            audio = load_audio(path, self.sr)
             # zero phased digital filter cause pre-ringing noise...
             # audio = signal.filtfilt(self.bh, self.ah, audio)
             audio = signal.lfilter(self.bh, self.ah, audio)

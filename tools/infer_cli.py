@@ -55,7 +55,7 @@ def main() -> None:
     vc.get_vc(args.model_name)
     input_path = Path(args.input_path)
     output_path = Path(args.opt_path)
-    audio = load_audio(str(input_path), 16000)
+    audio = load_audio(input_path, 16000)
     message, wav_opt = vc.vc_single(
         (16000, audio),
         args.f0up_key,

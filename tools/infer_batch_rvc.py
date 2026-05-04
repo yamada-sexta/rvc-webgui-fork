@@ -56,7 +56,7 @@ def main() -> None:
     output_path = Path(args.opt_path)
     for file_path in tq.tqdm(sorted(input_path.iterdir())):
         if file_path.suffix == ".wav":
-            audio = load_audio(str(file_path), 16000)
+            audio = load_audio(file_path, 16000)
             message, wav_opt = vc.vc_single(
                 (16000, audio),
                 args.f0up_key,
