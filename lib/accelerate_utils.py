@@ -1,3 +1,4 @@
+from typing import Protocol
 from functools import lru_cache
 from typing import Any
 
@@ -24,12 +25,6 @@ def device_string() -> str:
 def use_half_precision() -> bool:
     accelerator = get_accelerator()
     return accelerator.device.type != "cpu" and accelerator.mixed_precision == "fp16"
-
-
-def move_to_device(value: Any, *, non_blocking: bool = False) -> Any:
-    if hasattr(value, "to"):
-        return value.to(get_device(), non_blocking=non_blocking)
-    return value
 
 
 def empty_cache() -> None:
