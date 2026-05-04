@@ -94,9 +94,11 @@ def preprocess_dataset(
 ) -> Generator[str, None, None]:
     audio_dir = Path(audio_dir)
     exp_dir = Path(exp_dir)
-    log_dir = pathlib.Path(shared.now_dir) / "logs" / exp_dir
+    log_dir = Path(shared.now_dir) / "logs" / exp_dir
     log_path = log_dir / "preprocess.log"
-    preprocess_script = pathlib.Path("infer/modules/train/preprocess.py")
+    preprocess_script = (
+        Path(shared.now_dir) / "infer" / "modules" / "train" / "preprocess.py"
+    )
 
     # 1. Validate audio_dir and count files
     if not audio_dir.is_dir():
