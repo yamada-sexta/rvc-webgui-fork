@@ -289,7 +289,7 @@ def load_filepaths_and_text(
     return res
 
 
-def get_hparams(init=True):
+def get_hparams() -> HParams:
     """
     todo:
       The ending group of seven:
