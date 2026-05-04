@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 import numpy as np
 import torch
 import torch.utils.data
+import safetensors.torch
 from typing import Iterator
 
 from infer.lib.train.mel_processing import spectrogram_torch
@@ -50,7 +51,7 @@ class TextAudioLoaderMultiNSFsid(torch.utils.data.Dataset):
         for audiopath, text, pitch, pitchf, dv in self.audiopaths_and_text:
             phone_len = len(
                 text.name
-            )  # text is a Path to the .npy phone file; use its name length as proxy
+            )  # text is a Path to the .safetensors phone file; use its name length as proxy
             if self.min_text_len <= phone_len and phone_len <= self.max_text_len:
                 audiopaths_and_text_new.append((audiopath, text, pitch, pitchf, dv))
                 lengths.append(audiopath.stat().st_size // (3 * self.hop_length))
@@ -98,19 +99,18 @@ class TextAudioLoaderMultiNSFsid(torch.utils.data.Dataset):
     def get_labels(
         self, phone: Path, pitch: Path, pitchf: Path
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        phone_np = np.load(phone)
-        phone_np = np.repeat(phone_np, 2, axis=0)
-        pitch_np = np.load(pitch)
-        pitchf_np = np.load(pitchf)
-        n_num = min(phone_np.shape[0], 900)  # DistributedBucketSampler
-        # print(234,phone.shape,pitch.shape)
-        phone_np = phone_np[:n_num, :]
-        pitch_np = pitch_np[:n_num]
-        pitchf_np = pitchf_np[:n_num]
-        phone_t = torch.FloatTensor(phone_np)
-        pitch_t = torch.LongTensor(pitch_np)
-        pitchf_t = torch.FloatTensor(pitchf_np)
-        return phone_t, pitch_t, pitchf_t
+        phone_t = safetensors.torch.load_file(phone)["data"]
+        phone_t = torch.repeat_interleave(phone_t, 2, dim=0)
+
+        pitch_t = safetensors.torch.load_file(pitch)["data"]
+        pitchf_t = safetensors.torch.load_file(pitchf)["data"]
+
+        n_num = min(phone_t.shape[0], 900)  # DistributedBucketSampler
+        phone_t = phone_t[:n_num, :]
+        pitch_t = pitch_t[:n_num]
+        pitchf_t = pitchf_t[:n_num]
+
+        return phone_t, pitch_t.long(), pitchf_t.float()
 
     def get_audio(self, filename: Path) -> tuple[torch.Tensor, torch.Tensor]:
         audio, sampling_rate = load_wav_to_torch(filename)

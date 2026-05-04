@@ -1,4 +1,6 @@
 import pandas as pd
+import torch
+import safetensors.torch
 from configs.config import get_config
 import dataclasses
 import datetime
@@ -8,6 +10,7 @@ import pathlib
 import shlex
 import shutil
 import subprocess
+import sys
 from random import shuffle
 from collections.abc import Generator
 from time import sleep
@@ -167,7 +170,36 @@ def preprocess_dataset(
     records = read_json_log_records(log_path)
     log = format_log_messages(records)
     logger.info(f"Preprocess stage completed for {exp_dir}")
+
+    # Generate mute assets within the experiment's directories
+    generate_mute_wavs(log_dir, sr_hz)
+
     yield log
+
+
+def generate_mute_wavs(exp_dir: Path, sample_rate: int) -> None:
+    gt_dir = exp_dir / "0_gt_wavs"
+    wav16k_dir = exp_dir / "1_16k_wavs"
+    gt_dir.mkdir(parents=True, exist_ok=True)
+    wav16k_dir.mkdir(parents=True, exist_ok=True)
+
+    frames = 100
+    # We need to know hop_length to match frames.
+    # Since we are in preprocessing, we can get it from the sample rate if we assume standard RVC hops.
+    # For 40k it's 400, for 48k it's 480, for 32k it's 320.
+    # Basically hop_length = sample_rate / 100.
+    hop_length = sample_rate // 100
+
+    wav_path = gt_dir / "mute.wav" # Changed from mute{sr}.wav to just mute.wav for simplicity
+    wav16k_path = wav16k_dir / "mute.wav"
+
+    if not wav_path.exists():
+        silence = np.zeros(frames * hop_length, dtype=np.int16)
+        write_wav(wav_path, sample_rate, silence)
+    if not wav16k_path.exists():
+        silence16k = np.zeros(frames * 160, dtype=np.int16)
+        write_wav(wav16k_path, 16000, silence16k)
+    logger.info(f"Generated mute wavs in {exp_dir}")
 
 
 def preprocess_meta(
@@ -323,45 +355,6 @@ def change_pretrained_inputs(
     return change_sr2(sr2)
 
 
-def ensure_mute_assets(version: ModelVersion, sr2: SampleRateName) -> None:
-    mute_root = pathlib.Path(shared.now_dir) / "logs" / "mute"
-    gt_dir = mute_root / "0_gt_wavs"
-    feature_dir = mute_root / "3_feature768"
-    f0_dir = mute_root / "2a_f0"
-    f0nsf_dir = mute_root / "2b-f0nsf"
-    for path in (gt_dir, feature_dir, f0_dir, f0nsf_dir):
-        path.mkdir(parents=True, exist_ok=True)
-
-    if version == "v3":
-        config = get_v3_training_config()
-        sample_rate = config.data.sampling_rate
-        hop_length = config.data.hop_length
-    else:
-        sample_rate = shared.sr_dict[sr2]
-        config_key = f"v2/{sr2}.json"
-        config = get_config().json_config[config_key]
-        hop_length = config.data.hop_length
-
-    frames = 100
-    wav_path = gt_dir / f"mute{sr2}.wav"
-    phone_path = feature_dir / "mute.npy"
-    pitch_path = f0_dir / "mute.wav.npy"
-    pitchf_path = f0nsf_dir / "mute.wav.npy"
-
-    if not wav_path.exists():
-        silence = np.zeros(frames * hop_length, dtype=np.int16)
-        write_wav(wav_path, sample_rate, silence)
-    if not phone_path.exists():
-        phone = np.zeros((frames // 2, 768), dtype=np.float32)
-        np.save(phone_path, phone)
-    if not pitch_path.exists():
-        pitch = np.zeros(frames, dtype=np.int64)
-        np.save(pitch_path, pitch)
-    if not pitchf_path.exists():
-        pitchf = np.zeros(frames, dtype=np.float32)
-        np.save(pitchf_path, pitchf)
-
-
 def click_train(
     exp_dir1: str,
     sr2: SampleRateName,
@@ -382,7 +375,6 @@ def click_train(
     if version19 == "v2" and sr2 == "44k":
         yield "44k is currently reserved for v3."
         return
-    ensure_mute_assets(version19, sr2)
     # Generating file list
     exp_dir = pathlib.Path(shared.now_dir) / "logs" / exp_dir1
     exp_dir.mkdir(parents=True, exist_ok=True)
@@ -402,39 +394,56 @@ def click_train(
             + "\nRun preprocessing and feature extraction first, then retry training."
         )
         return
+
     names = (
         {name.split(".")[0] for name in os.listdir(gt_wavs_dir)}
         & {name.split(".")[0] for name in os.listdir(feature_dir)}
         & {name.split(".")[0] for name in os.listdir(f0_dir)}
         & {name.split(".")[0] for name in os.listdir(f0nsf_dir)}
     )
+
+    if "mute" in names:
+        names.remove("mute")
+
     if not names:
         yield (
             "Training data is incomplete. No matching items were found across "
             "`0_gt_wavs`, `3_feature768`, `2a_f0`, and `2b-f0nsf`."
         )
         return
+
     data = []
     for name in names:
         data.append(
             {
                 "wav_path": gt_wavs_dir / f"{name}.wav",
-                "npy_path": feature_dir / f"{name}.npy",
-                "f0_path": f0_dir / f"{name}.wav.npy",
-                "f0nsf_path": f0nsf_dir / f"{name}.wav.npy",
+                "npy_path": feature_dir / f"{name}.safetensors",
+                "f0_path": f0_dir / f"{name}.wav.safetensors",
+                "f0nsf_path": f0nsf_dir / f"{name}.wav.safetensors",
                 "speaker_id": spk_id5,
             }
         )
-    for _ in range(2):
-        data.append(
-            {
-                "wav_path": Path(shared.now_dir) / "logs" / "mute" / "0_gt_wavs" / f"mute{sr2}.wav",
-                "npy_path": Path(shared.now_dir) / "logs" / "mute" / "3_feature768" / "mute.npy",
-                "f0_path": Path(shared.now_dir) / "logs" / "mute" / "2a_f0" / "mute.wav.npy",
-                "f0nsf_path": Path(shared.now_dir) / "logs" / "mute" / "2b-f0nsf" / "mute.wav.npy",
-                "speaker_id": spk_id5,
-            }
-        )
+
+    # Add mute assets from the experiment's own folders
+    mute_wav = gt_wavs_dir / "mute.wav"
+    mute_feature = feature_dir / "mute.safetensors"
+    mute_f0 = f0_dir / "mute.wav.safetensors"
+    mute_f0nsf = f0nsf_dir / "mute.wav.safetensors"
+
+    if all(p.exists() for p in (mute_wav, mute_feature, mute_f0, mute_f0nsf)):
+        for _ in range(2):
+            data.append(
+                {
+                    "wav_path": mute_wav,
+                    "npy_path": mute_feature,
+                    "f0_path": mute_f0,
+                    "f0nsf_path": mute_f0nsf,
+                    "speaker_id": spk_id5,
+                }
+            )
+    else:
+        logger.warning("Mute assets missing in experiment directory. Skipping mute augmentation.")
+
     df = pd.DataFrame(data)
     df = df.sample(frac=1).reset_index(drop=True)
     df.to_csv(exp_dir / "filelist.csv", index=False)

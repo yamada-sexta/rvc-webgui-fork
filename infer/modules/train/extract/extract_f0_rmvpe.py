@@ -10,6 +10,8 @@ now_dir = Path.cwd()
 sys.path.append(str(now_dir))
 
 import numpy as np
+import torch
+import safetensors.torch
 
 from infer.lib.audio import load_audio
 from lib.f0.gen import Generator
@@ -98,8 +100,8 @@ class FeatureInput:
                         device=device_string(),
                     ).info(f"Starting RMVPE f0 for {Path(inp_path).name}")
                     skipped = (
-                        Path(f"{opt_path1}.npy").exists()
-                        and Path(f"{opt_path2}.npy").exists()
+                        Path(f"{opt_path1}.safetensors").exists()
+                        and Path(f"{opt_path2}.safetensors").exists()
                     )
                     if not skipped:
                         audio = load_audio(inp_path, self.fs)
@@ -111,8 +113,14 @@ class FeatureInput:
                             "rmvpe",
                             3,
                         )
-                        np.save(opt_path2, featur_pit, allow_pickle=False)
-                        np.save(opt_path1, coarse_pit, allow_pickle=False)
+                        safetensors.torch.save_file(
+                            {"data": torch.from_numpy(featur_pit)},
+                            f"{opt_path2}.safetensors",
+                        )
+                        safetensors.torch.save_file(
+                            {"data": torch.from_numpy(coarse_pit)},
+                            f"{opt_path1}.safetensors",
+                        )
                     logger.bind(
                         event="ui_progress",
                         detail_event="f0_progress",

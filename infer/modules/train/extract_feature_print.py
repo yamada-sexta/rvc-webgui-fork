@@ -30,6 +30,7 @@ import numpy as np
 import soundfile as sf
 import torch
 import torch.nn.functional as F
+import safetensors.torch
 
 accelerator = get_accelerator()
 device = accelerator.device
@@ -133,7 +134,7 @@ else:
         try:
             if file.suffix == ".wav":
                 wav_path = wavPath / file.name
-                out_path = outPath / file.with_suffix(".npy").name
+                out_path = outPath / file.with_suffix(".safetensors").name
                 logger.bind(
                     event="ui_progress",
                     detail_event="feature_processing",
@@ -162,9 +163,9 @@ else:
                         logits = model.extract_features(**inputs)
                         feats = logits[0]
 
-                    feats = feats.squeeze(0).float().cpu().numpy()
-                    if np.isnan(feats).sum() == 0:
-                        np.save(out_path, feats, allow_pickle=False)
+                    feats = feats.squeeze(0).float().cpu()
+                    if not torch.isnan(feats).any():
+                        safetensors.torch.save_file({"data": feats}, out_path)
                     else:
                         logger.warning(f"{file.name} contains NaN values")
                 logger.bind(
