@@ -1,4 +1,6 @@
+from __future__ import annotations
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -18,6 +20,12 @@ class V2TrainConfig:
     c_mel: int
     c_kl: float
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> V2TrainConfig:
+        if isinstance(data.get("betas"), list):
+            data["betas"] = tuple(data["betas"])
+        return cls(**data)
+
 
 @dataclass(frozen=True)
 class V2DataConfig:
@@ -29,6 +37,10 @@ class V2DataConfig:
     n_mel_channels: int
     mel_fmin: float
     mel_fmax: float | None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> V2DataConfig:
+        return cls(**data)
 
 
 @dataclass(frozen=True)
@@ -50,9 +62,22 @@ class V2ModelConfig:
     gin_channels: int
     spk_embed_dim: int
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> V2ModelConfig:
+        return cls(**data)
+
 
 @dataclass(frozen=True)
 class V2TrainingConfig:
     train: V2TrainConfig
     data: V2DataConfig
     model: V2ModelConfig
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> V2TrainingConfig:
+        return cls(
+            train=V2TrainConfig.from_dict(data["train"]),
+            data=V2DataConfig.from_dict(data["data"]),
+            model=V2ModelConfig.from_dict(data["model"]),
+        )
+

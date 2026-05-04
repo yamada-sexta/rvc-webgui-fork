@@ -103,11 +103,7 @@ class Config:
                 shutil.copy(f"configs/{config_file}", p)
             with open(f"configs/inuse/{config_file}", "r") as f:
                 data_dict = json.load(f)
-                d[config_file] = V2TrainingConfig(
-                    train=V2TrainConfig(**data_dict["train"]),
-                    data=V2DataConfig(**data_dict["data"]),
-                    model=V2ModelConfig(**data_dict["model"]),
-                )
+                d[config_file] = V2TrainingConfig.from_dict(data_dict)
         return d
 
     @staticmethod

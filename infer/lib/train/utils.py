@@ -272,7 +272,7 @@ def get_hparams() -> "HParams":
             raise FileNotFoundError(
                 f"Config file not found at {config_path}. Please ensure the config file is present."
             )
-        config = V2TrainingConfig(**json.loads(config_path.read_text()))
+        config = V2TrainingConfig.from_dict(json.loads(config_path.read_text()))
     else:
         raise ValueError(f"Unsupported model version: {args.version}")
 
@@ -321,7 +321,7 @@ def get_hparams() -> "HParams":
             n_mel_channels=config.data.n_mel_channels,
             mel_fmin=config.data.mel_fmin,
             mel_fmax=config.data.mel_fmax,
-            training_files=experiment_dir / "filelist.txt,",
+            training_files=experiment_dir / "filelist.txt",
         ),
         model=ModelHParams(
             inter_channels=config.model.inter_channels,
