@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 import numpy as np
 import torch
 import torch.utils.data
+import torchaudio
 import safetensors.torch
 from typing import Iterator
 
@@ -115,10 +116,8 @@ class TextAudioLoaderMultiNSFsid(torch.utils.data.Dataset):
     def get_audio(self, filename: Path) -> tuple[torch.Tensor, torch.Tensor]:
         audio, sampling_rate = load_wav_to_torch(filename)
         if sampling_rate != self.sampling_rate:
-            raise ValueError(
-                "{} SR doesn't match target {} SR".format(
-                    sampling_rate, self.sampling_rate
-                )
+            audio = torchaudio.functional.resample(
+                audio, sampling_rate, self.sampling_rate
             )
         audio_norm = audio
         #        audio_norm = audio / self.max_wav_value

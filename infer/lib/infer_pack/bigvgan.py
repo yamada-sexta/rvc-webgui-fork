@@ -134,7 +134,8 @@ class BigVGANNSFGenerator(nn.Module):
         return int(getattr(self.bigvgan.h, "sampling_rate"))
 
     def remove_weight_norm(self) -> None:
-        return None
+        # type: ignore[operator]
+        self.bigvgan.remove_weight_norm()
 
     def forward(
         self,
