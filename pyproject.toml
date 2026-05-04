@@ -46,4 +46,8 @@ dependencies = [
 project-includes = ["**/*.py*", "**/*.ipynb"]
 
 [dependency-groups]
-dev = ["pyrefly>=0.63.1", "uv>=0.11.8"]
+dev = [
+    "pyrefly>=0.63.1",
+    "types-tqdm>=4.67.3.20260408",
+    "uv>=0.11.8",
+]

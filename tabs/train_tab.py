@@ -3,11 +3,9 @@ import datetime
 import json
 import os
 import pathlib
-import platform
 import shlex
 import shutil
 import subprocess
-import traceback
 from random import shuffle
 from collections.abc import Generator
 from time import sleep
@@ -19,6 +17,7 @@ from loguru import logger
 from pydantic import ValidationError
 from scipy.io.wavfile import write as write_wav
 from sklearn.cluster import MiniBatchKMeans
+from pathlib import Path
 
 import shared
 from configs.v3_config import get_v3_training_config
@@ -36,7 +35,7 @@ SampleRate = SampleRateName
 PitchExtractionMethod = Literal["pm", "harvest", "dio", "rmvpe", "rmvpe_gpu"]
 
 
-def read_json_log_records(log_path: pathlib.Path) -> list[JsonLogPayload]:
+def read_json_log_records(log_path: Path) -> list[JsonLogPayload]:
     if not log_path.exists():
         return []
     records: list[JsonLogPayload] = []
