@@ -262,28 +262,29 @@ def extract_f0_feature(
 
 
 def get_pretrained_models(path: Path, f0_str: str, sr2: SampleRate) -> tuple[str, str]:
-    if_pretrained_generator_exist = os.access(
-        "assets/pretrained%s/%sG%s.pth" % (path_str, f0_str, sr2), os.F_OK
-    )
-    if_pretrained_discriminator_exist = os.access(
-        "assets/pretrained%s/%sD%s.pth" % (path_str, f0_str, sr2), os.F_OK
-    )
+    pretrained_dir = Path("assets") / f"pretrained{path}"
+    generator_path = pretrained_dir / f"{f0_str}G{sr2}.pth"
+    discriminator_path = pretrained_dir / f"{f0_str}D{sr2}.pth"
+
+    if_pretrained_generator_exist = generator_path.exists()
+    if_pretrained_discriminator_exist = discriminator_path.exists()
+
     if not if_pretrained_generator_exist:
         logger.warning(
-            f"assets/pretrained{path_str}/{f0_str}G{sr2}.pth does not exist, so the pretrained generator will not be used"
+            f"{generator_path.as_posix()} does not exist, so the pretrained generator will not be used"
         )
     if not if_pretrained_discriminator_exist:
         logger.warning(
-            f"assets/pretrained{path_str}/{f0_str}D{sr2}.pth does not exist, so the pretrained discriminator will not be used"
+            f"{discriminator_path.as_posix()} does not exist, so the pretrained discriminator will not be used"
         )
     return (
         (
-            "assets/pretrained%s/%sG%s.pth" % (path_str, f0_str, sr2)
+            generator_path.as_posix()
             if if_pretrained_generator_exist
             else ""
         ),
         (
-            "assets/pretrained%s/%sD%s.pth" % (path_str, f0_str, sr2)
+            discriminator_path.as_posix()
             if if_pretrained_discriminator_exist
             else ""
         ),
@@ -291,7 +292,7 @@ def get_pretrained_models(path: Path, f0_str: str, sr2: SampleRate) -> tuple[str
 
 
 def change_sr2(sr2: SampleRate) -> tuple[str, str]:
-    return get_pretrained_models("_v2", "f0", sr2)
+    return get_pretrained_models(Path("_v2"), "f0", sr2)
 
 
 def change_version_and_sr(
