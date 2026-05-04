@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Literal
 
 import numpy as np
@@ -78,7 +79,9 @@ class Slicer:
         self.min_interval = round(min_interval_samples / self.hop_size)
         self.max_sil_kept = round(sr * max_sil_kept / 1000 / self.hop_size)
 
-    def _apply_slice(self, waveform, begin, end):
+    def _apply_slice(
+        self, waveform: NDArray[np.floating], begin: int, end: int
+    ) -> NDArray[np.floating]:
         if len(waveform.shape) > 1:
             return waveform[
                 :, begin * self.hop_size : min(waveform.shape[1], end * self.hop_size)
@@ -204,20 +207,26 @@ def main():
     from tap import Tap
 
     class SlicerArgs(Tap):
-        # The audio to be sliced.
-        audio: str
-        # Output directory of the sliced audio clips.
-        out: str | None = None
-        # The dB threshold for silence detection.
-        db_thresh: float = -40
-        # The minimum milliseconds required for each sliced audio clip.
-        min_length: int = 5000
-        # The minimum milliseconds for a silence part to be sliced.
-        min_interval: int = 300
-        # Frame length in milliseconds.
-        hop_size: int = 10
-        # The maximum silence length kept around the sliced clip.
-        max_sil_kept: int = 500
+
+        audio: Path  # The audio to be sliced.
+
+        out: Path | None = None  # Output directory of the sliced audio clips.
+
+        db_thresh: float = -40  # The dB threshold for silence detection.
+
+        min_length: int = (
+            5000  # The minimum milliseconds required for each sliced audio clip.
+        )
+
+        min_interval: int = (
+            300  # The minimum milliseconds for a silence part to be sliced.
+        )
+
+        hop_size: int = 10  # Frame length in milliseconds.
+
+        max_sil_kept: int = (
+            500  # The maximum silence length kept around the sliced clip.
+        )
 
         def configure(self) -> None:
             self.add_argument("audio")
@@ -225,7 +234,8 @@ def main():
     args = SlicerArgs().parse_args()
     out = args.out
     if out is None:
-        out = os.path.dirname(os.path.abspath(args.audio))
+        # out = os.path.dirname(os.path.abspath(args.audio))
+        out = Path(args.audio).parent / "sliced_clips"
     audio, sr = librosa.load(args.audio, sr=None, mono=False)
     slicer = Slicer(
         sr=int(sr),
@@ -236,17 +246,20 @@ def main():
         max_sil_kept=args.max_sil_kept,
     )
     chunks = slicer.slice(audio)
-    if not os.path.exists(out):
-        os.makedirs(out)
+    # if not os.path.exists(out):
+    #     os.makedirs(out)
+    if not out.exists():
+        out.mkdir(parents=True, exist_ok=True)
     for i, chunk in enumerate(chunks):
         if len(chunk.shape) > 1:
             chunk = chunk.T
         soundfile.write(
-            os.path.join(
-                out,
-                f"%s_%d.wav"
-                % (os.path.basename(args.audio).rsplit(".", maxsplit=1)[0], i),
-            ),
+            # os.path.join(
+            #     out,
+            #     f"%s_%d.wav"
+            #     % (os.path.basename(args.audio).rsplit(".", maxsplit=1)[0], i),
+            # ),
+            out / f"{Path(args.audio).stem}_{i}.wav",
             chunk,
             sr,
         )
