@@ -38,3 +38,4 @@ ffprobe.*
 
 /docker-cache
 *.log
+/output

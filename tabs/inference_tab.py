@@ -1,4 +1,9 @@
+import datetime
+import shutil
+from pathlib import Path
+
 import gradio as gr
+import soundfile as sf
 
 import shared
 from lib.f0.type import PITCH_METHODS, PitchMethod
@@ -58,20 +63,47 @@ def create_inference_tab(app: gr.Blocks) -> None:
                         type="numpy",
                     )
                     convert_btn = gr.Button(i18n("Convert"), variant="primary")
-                    autoplay_checkbox = gr.Checkbox(label=i18n("Autoplay"), value=False)
 
                     vc_file_output = gr.Audio(
                         label=i18n("Output Audio"),
                     )
+                    download_btn = gr.DownloadButton(
+                        label=i18n("Download Result"),
+                        visible=True,
+                        interactive=False,
+                        variant="secondary"
+                    )
 
-                    def set_autoplay(x: bool) -> dict[str, object]:
-                        logger.info(f"Set auto play: {x}")
-                        return {"autoplay": x, "__type__": "update"}
+                    def prepare_download(
+                        audio_data: tuple[int, object] | str | None,
+                        model_name: str | None,
+                    ) -> dict[str, object]:
+                        if not audio_data:
+                            return {"interactive": False, "value": None, "__type__": "update"}
+                        try:
+                            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                            model_name_clean = Path(model_name).stem if model_name else "model"
+                            filename = f"{model_name_clean}_{timestamp}.wav"
 
-                    autoplay_checkbox.input(
-                        set_autoplay,
-                        [autoplay_checkbox],
-                        [vc_file_output],
+                            output_dir = Path("output")
+                            output_dir.mkdir(exist_ok=True)
+                            file_path = output_dir / filename
+
+                            if isinstance(audio_data, str):
+                                shutil.copy2(audio_data, file_path)
+                            else:
+                                sr, audio = audio_data
+                                sf.write(file_path, audio, sr)
+
+                            return {"interactive": True, "value": str(file_path), "__type__": "update"}
+                        except Exception as e:
+                            logger.error(f"Failed to prepare download: {e}")
+                            return {"interactive": False, "value": None, "__type__": "update"}
+                    
+                    vc_file_output.change(
+                        prepare_download,
+                        inputs=[vc_file_output, model_dropdown],
+                        outputs=[download_btn],
                     )
 
             with gr.Column():
