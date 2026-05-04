@@ -36,7 +36,15 @@ class TextAudioLoaderMultiNSFsid(torch.utils.data.Dataset):
         self.sampling_rate = hparams.sampling_rate
         self.min_text_len = hparams.min_text_len
         self.max_text_len = hparams.max_text_len
+        # self._filter()
 
+        # def _filter(self) -> None:
+        #     """
+        #     Filter text & store spec lengths
+        #     """
+        # Store spectrogram lengths for Bucketing
+        # wav_length ~= file_size / (wav_channels * Bytes per dim) = file_size / (1 * 2)
+        # spec_length = wav_length // hop_length
         audiopaths_and_text_new: list[tuple[Path, Path, Path, Path, str]] = []
         lengths = []
         for audiopath, text, pitch, pitchf, dv in self.audiopaths_and_text:
