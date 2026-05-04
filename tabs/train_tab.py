@@ -88,18 +88,17 @@ def is_skip_update(value: object) -> bool:
 
 
 def preprocess_dataset(
-    audio_dir: str | pathlib.Path,
-    exp_dir: str,
+    audio_dir: Path,
+    exp_dir: Path,
     sr: SampleRate,
     progress: gr.Progress = gr.Progress(),
 ) -> Generator[str, None, None]:
-    audio_dir_path = pathlib.Path(audio_dir)
     log_dir = pathlib.Path(shared.now_dir) / "logs" / exp_dir
     log_path = log_dir / "preprocess.log"
     preprocess_script = pathlib.Path("infer/modules/train/preprocess.py")
 
     # 1. Validate audio_dir and count files
-    if not audio_dir_path.is_dir():
+    if not audio_dir.is_dir():
         error_msg = (
             f"Error: Audio directory '{audio_dir}' not found or is not a directory."
         )
@@ -110,7 +109,7 @@ def preprocess_dataset(
     actual_file_count = 0
     try:
         # List all entries in the directory and filter for files
-        file_names = [path.name for path in audio_dir_path.iterdir() if path.is_file()]
+        file_names = [path.name for path in audio_dir.iterdir() if path.is_file()]
         actual_file_count = len(file_names)
         info_msg = f"Found {actual_file_count} files in audio directory: {audio_dir}"
         logger.info(info_msg)
@@ -140,7 +139,7 @@ def preprocess_dataset(
         shared.config.python_cmd,
         str(preprocess_script),
         "--inp_root",
-        str(audio_dir_path),
+        str(audio_dir),
         "--sr",
         str(sr_hz),
         "--n_p",
@@ -169,12 +168,12 @@ def preprocess_dataset(
 
 def preprocess_meta(
     experiment_name: str,
-    audio_dir: str | pathlib.Path,
-    audio_files: list[str | pathlib.Path] | None,
+    audio_dir: Path,
+    audio_files: list[Path] | None,
     sr: SampleRate,
     progress: gr.Progress = gr.Progress(),
 ) -> Generator[str, None, None]:
-    save_dir = pathlib.Path(audio_dir) / experiment_name
+    save_dir = audio_dir / experiment_name
     save_dir.mkdir(parents=True, exist_ok=True)
 
     if audio_files is not None:
@@ -185,7 +184,7 @@ def preprocess_meta(
 
     for update in preprocess_dataset(
         audio_dir=save_dir,
-        exp_dir=experiment_name,
+        exp_dir=pathlib.Path(experiment_name),
         sr=sr,
         progress=progress,
     ):
@@ -194,11 +193,11 @@ def preprocess_meta(
 
 def extract_f0_feature(
     f0method: PitchExtractionMethod,
-    exp_dir: str,
+    exp_dir: Path,
     version: ModelVersion = "v2",
     progress: gr.Progress = gr.Progress(),
 ) -> Generator[str, None, None]:
-    log_dir = pathlib.Path(shared.now_dir) / "logs" / exp_dir
+    log_dir = exp_dir / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "extract_f0_feature.log"
     log_path.write_text("")
@@ -262,9 +261,7 @@ def extract_f0_feature(
     yield log
 
 
-def get_pretrained_models(
-    path_str: str, f0_str: str, sr2: SampleRate
-) -> tuple[str, str]:
+def get_pretrained_models(path: Path, f0_str: str, sr2: SampleRate) -> tuple[str, str]:
     if_pretrained_generator_exist = os.access(
         "assets/pretrained%s/%sG%s.pth" % (path_str, f0_str, sr2), os.F_OK
     )
