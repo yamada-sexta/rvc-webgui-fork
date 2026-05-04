@@ -203,53 +203,6 @@ def save_checkpoint_d(
     )
 
 
-class SummaryWriter(Protocol):
-    def add_scalar(
-        self, tag: str, scalar_value: object, global_step: int
-    ) -> object: ...
-
-    def add_histogram(self, tag: str, values: object, global_step: int) -> object: ...
-
-    def add_image(
-        self,
-        tag: str,
-        img_tensor: NDArray[np.generic],
-        global_step: int,
-        dataformats: str,
-    ) -> object: ...
-
-    def add_audio(
-        self,
-        tag: str,
-        snd_tensor: NDArray[np.generic],
-        global_step: int,
-        sample_rate: int,
-    ) -> object: ...
-
-
-def summarize(
-    writer: SummaryWriter,
-    global_step: int,
-    scalars: Mapping[str, object] | None = None,
-    histograms: Mapping[str, object] | None = None,
-    images: Mapping[str, NDArray[np.generic]] | None = None,
-    audios: Mapping[str, NDArray[np.generic]] | None = None,
-    audio_sampling_rate: int = 22050,
-) -> None:
-    scalars = scalars or {}
-    histograms = histograms or {}
-    images = images or {}
-    audios = audios or {}
-    for k, v in scalars.items():
-        writer.add_scalar(k, v, global_step)
-    for k, v in histograms.items():
-        writer.add_histogram(k, v, global_step)
-    for k, v in images.items():
-        writer.add_image(k, v, global_step, dataformats="HWC")
-    for k, v in audios.items():
-        writer.add_audio(k, v, global_step, audio_sampling_rate)
-
-
 def latest_checkpoint_path(dir_path: Path, regex: str = "G_*.pth") -> Path:
     f_list = sorted(
         dir_path.glob(regex), key=lambda f: int("".join(filter(str.isdigit, f.name)))
@@ -259,7 +212,7 @@ def latest_checkpoint_path(dir_path: Path, regex: str = "G_*.pth") -> Path:
     return x
 
 
-def load_wav_to_torch(full_path: Path):
+def load_wav_to_torch(full_path: Path) -> tuple[torch.FloatTensor, int]:
     sampling_rate, data = read(full_path)
     return torch.FloatTensor(data.astype(np.float32)), sampling_rate
 
@@ -330,17 +283,6 @@ def get_hparams() -> HParams:
         training_files=experiment_dir / "filelist.txt",
     )
     return HParams.from_config(config, runtime)
-
-
-def get_hparams_from_dir(model_dir: Path):
-    config_save_path = model_dir / "config.json"
-    config = HParamsConfig.model_validate_json(config_save_path.read_text())
-    return HParams.from_config(config, HParamsRuntimeOverrides(model_dir=model_dir))
-
-
-def get_hparams_from_file(config_path: Path):
-    config = HParamsConfig.model_validate_json(config_path.read_text())
-    return HParams.from_config(config)
 
 
 def check_git_hash(model_dir: Path) -> None:
