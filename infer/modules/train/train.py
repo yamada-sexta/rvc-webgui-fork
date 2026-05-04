@@ -1,6 +1,7 @@
 import sys
 from contextlib import nullcontext
 from pathlib import Path
+from typing import Any
 
 now_dir = Path.cwd()
 sys.path.append(str(now_dir))
@@ -49,7 +50,25 @@ from infer.lib.train.process_ckpt import savee
 global_step = 0
 
 
-def build_generator(hps, use_fp16: bool):
+def _resolve_pretrain_file(
+    path_like: str | Path | None, label: str, training_logger: Any
+) -> Path | None:
+    if path_like is None:
+        return None
+    path_str = str(path_like).strip()
+    if path_str == "" or path_str == "." or path_str.lower() in {"none", "null"}:
+        return None
+    path = Path(path_str).expanduser()
+    if not path.exists():
+        training_logger.warning(f"{label} pretrain path does not exist: {path}")
+        return None
+    if not path.is_file():
+        training_logger.warning(f"{label} pretrain path is not a file: {path}")
+        return None
+    return path
+
+
+def build_generator(hps: Any, use_fp16: bool) -> torch.nn.Module:
     model_cls = SynthesizerTrnMs768BigVGANsid if hps.version == "v3" else RVC_Model_f0
     return model_cls(
         hps.data.filter_length // 2 + 1,
@@ -75,10 +94,10 @@ def build_generator(hps, use_fp16: bool):
 
 
 class EpochRecorder:
-    def __init__(self):
+    def __init__(self) -> None:
         self.last_time = ttime()
 
-    def record(self):
+    def record(self) -> str:
         now_time = ttime()
         elapsed_time = now_time - self.last_time
         self.last_time = now_time
@@ -87,7 +106,7 @@ class EpochRecorder:
         return f"[{current_time}] | ({elapsed_time_str})"
 
 
-def main():
+def main() -> None:
     training_logger = utils.get_logger(hps.model_dir, stdout=True)
     training_logger.bind(
         event="ui_progress",
@@ -101,7 +120,7 @@ def main():
     run(hps, training_logger)
 
 
-def run(hps, training_logger):
+def run(hps: Any, training_logger: Any) -> None:
     global global_step
     training_logger.bind(
         event="train_hparams",
@@ -150,42 +169,63 @@ def run(hps, training_logger):
         betas=hps.train.betas,
         eps=hps.train.eps,
     )
-    try:  # If it can load, automatically resume
-        _, _, _, epoch_str = utils.load_checkpoint(
-            utils.latest_checkpoint_path(hps.model_dir, "D_*.pth"), net_d, optim_d
-        )  # D mostly loads fine
-        training_logger.info("Loaded discriminator checkpoint")
-        # _, _, _, epoch_str = utils.load_checkpoint(utils.latest_checkpoint_path(hps.model_dir, "G_*.pth"), net_g, optim_g,load_opt=0)
-        _, _, _, epoch_str = utils.load_checkpoint(
-            utils.latest_checkpoint_path(hps.model_dir, "G_*.pth"), net_g, optim_g
+    epoch_str = 1
+    global_step = 0
+    resumed = False
+    try:
+        latest_d = utils.latest_checkpoint_path(hps.model_dir, "D_*.pth")
+        latest_g = utils.latest_checkpoint_path(hps.model_dir, "G_*.pth")
+    except IndexError:
+        latest_d = None
+        latest_g = None
+
+    if latest_d is not None and latest_g is not None:
+        try:  # If it can load, automatically resume
+            _, _, _, epoch_str = utils.load_checkpoint(latest_d, net_d, optim_d)
+            training_logger.info("Loaded discriminator checkpoint")
+            _, _, _, epoch_str = utils.load_checkpoint(latest_g, net_g, optim_g)
+            global_step = (epoch_str - 1) * len(train_loader)
+            resumed = True
+        except Exception as exc:
+            training_logger.warning(
+                f"Failed to resume from checkpoints, falling back to pretrain/scratch: {exc}"
+            )
+            epoch_str = 1
+            global_step = 0
+    else:
+        training_logger.info(
+            "No complete checkpoint pair found in model_dir; using pretrain files or starting from scratch."
         )
-        global_step = (epoch_str - 1) * len(train_loader)
-        # epoch_str = 1
-        # global_step = 0
-    except:  # If it can't load the first time, load pretrain
-        # traceback.print_exc()
-        epoch_str = 1
-        global_step = 0
-        if hps.pretrainG != "":
-            training_logger.info(f"Loading pretrained generator from {hps.pretrainG}")
+
+    if not resumed:
+        loaded_pretrain = False
+
+        pretrain_g = _resolve_pretrain_file(hps.pretrainG, "Generator", training_logger)
+        if pretrain_g is not None:
+            training_logger.info(f"Loading pretrained generator from {pretrain_g}")
             training_logger.info(
                 net_g.load_state_dict(
-                    torch.load(hps.pretrainG, map_location="cpu", weights_only=False)[
+                    torch.load(pretrain_g, map_location="cpu", weights_only=False)[
                         "model"
                     ]
                 )
             )
-        if hps.pretrainD != "":
-            training_logger.info(
-                f"Loading pretrained discriminator from {hps.pretrainD}"
-            )
+            loaded_pretrain = True
+
+        pretrain_d = _resolve_pretrain_file(hps.pretrainD, "Discriminator", training_logger)
+        if pretrain_d is not None:
+            training_logger.info(f"Loading pretrained discriminator from {pretrain_d}")
             training_logger.info(
                 net_d.load_state_dict(
-                    torch.load(hps.pretrainD, map_location="cpu", weights_only=False)[
+                    torch.load(pretrain_d, map_location="cpu", weights_only=False)[
                         "model"
                     ]
                 )
             )
+            loaded_pretrain = True
+
+        if not loaded_pretrain:
+            training_logger.info("No valid pretrained weights found; starting training from scratch.")
 
     scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
         optim_g, gamma=hps.train.lr_decay, last_epoch=epoch_str - 2
