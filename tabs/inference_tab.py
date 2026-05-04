@@ -144,7 +144,6 @@ def create_inference_tab(app: gr.Blocks) -> None:
                     inputs=[protect0],
                     outputs=[],
                 )
-            with gr.Column():
                 f0method0 = gr.Radio(
                     label=i18n("Pitch Method"),
                     choices=get_pitch_methods(),
